@@ -153,11 +153,15 @@
             <div id="view-list" class="space-y-4 max-w-5xl mx-auto pb-24">
                 <div class="flex gap-2 mb-4">
                     <input type="text" id="search-input" placeholder="搜尋企業或個案..." class="flex-1 p-3 md:p-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-base md:text-lg">
+                    <button type="button" id="btn-download-case-template" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 rounded-xl border border-slate-200 font-bold text-sm md:text-base whitespace-nowrap" title="下載案件匯入範本">
+                        <i class="fa-solid fa-file-arrow-down mr-1"></i>範本
+                    </button>
                     <label class="bg-emerald-500 text-white px-5 rounded-xl shadow-sm flex items-center justify-center cursor-pointer hover:bg-emerald-600 transition-colors font-bold text-base md:text-lg">
                         <i class="fa-solid fa-file-excel mr-2"></i> 匯入
                         <input type="file" id="excel-upload" accept=".xlsx, .xls" class="hidden">
                     </label>
                 </div>
+                <div id="case-import-status" class="hidden bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-sm font-medium mb-2"></div>
                 <div class="flex items-center justify-between bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm">
                     <div class="text-sm md:text-base text-slate-600 font-bold flex items-center gap-2">
                         <i class="fa-solid fa-user-check text-blue-500"></i>
@@ -10032,6 +10036,207 @@ ${rawDraft}
                 }
             }, 1200);
         })();
+
+        // ==========================================================================
+        // 🆕 Phase 5: 案件列表 Excel 匯入 (補空不覆蓋)
+        // ==========================================================================
+
+        // Excel 欄位 ↔ Firestore 欄位對應表（個案總表用）
+        // 可接受多個中文別名（對應個案總表實際欄位名稱）
+        const CASE_IMPORT_FIELDS = [
+            { zh: ['編號', '案件編號'],                      key: 'caseNo' },
+            { zh: ['對象別', '案件類別'],                    key: 'category' }, // 中高齡（工作站）/身心障礙者/勞工就業通
+            { zh: ['申請單位', '單位名稱', '公司名稱'],      key: 'company' },
+            { zh: ['聯絡窗口', '主要聯絡人', '聯絡人'],      key: 'contactName' },
+            { zh: ['聯絡窗口電話', '聯絡電話', '電話'],      key: 'phone' },
+            { zh: ['聯絡窗口Email', 'Email', '電子郵件'],    key: 'contactEmail' },
+            { zh: ['申請單位地址', '單位地址', '地址'],      key: 'companyAddress' },
+            { zh: ['接案人員', '轄區承辦', '承辦'],          key: 'owner' },          // 🔵 由個案總表來
+            { zh: ['訪視專員', '訪視人員'],                   key: 'inspector' },       // 🔵 由個案總表來
+            { zh: ['訪視委員', '委員'],                       key: 'committeesRaw' },   // 🔵 委員以「、」分隔
+            { zh: ['轄區'],                                   key: 'district' },
+            { zh: ['個案姓名', '姓名'],                       key: 'clientName' },
+            { zh: ['性別'],                                   key: 'clientGender' },
+            { zh: ['出生年月日', '生日'],                     key: 'clientDob' },
+            { zh: ['年齡'],                                   key: 'clientAge' },
+            { zh: ['職稱'],                                   key: 'clientTitle' },
+            { zh: ['障礙類別', '障別'],                       key: 'clientDisability' },
+            { zh: ['致障原因'],                               key: 'disabilityCause' },
+            { zh: ['個案手機', '個案聯繫手機'],               key: 'clientMobile' },
+            { zh: ['個案Email', '個案聯繫Email'],             key: 'clientEmail' },
+            { zh: ['教育程度'],                               key: 'education' },
+            { zh: ['到職日'],                                 key: 'hireDate' },
+            { zh: ['實際工作地點', '工作地點'],               key: 'workLocation' },
+            { zh: ['個人特質'],                               key: 'clientTraits' },
+            { zh: ['障礙情形', '障礙情形或工作內容'],         key: 'clientCondition' },
+            { zh: ['初訪日期'],                               key: 'visitDate' },
+            { zh: ['遭遇問題', '遭遇問題及期待經由職務再設計改善事項'], key: 'initialProblems' },
+            { zh: ['備註'],                                   key: 'note' }
+        ];
+
+        // 下載範本
+        document.getElementById('btn-download-case-template')?.addEventListener('click', () => {
+            const wb = XLSX.utils.book_new();
+            const headers = CASE_IMPORT_FIELDS.map(f => Array.isArray(f.zh) ? f.zh[0] : f.zh);
+            const example = [
+                '身-001', '身心障礙者', '○○有限公司', '王小明', '07-1234567', 'test@example.com', '高雄市○○區○○路1號',
+                '蔡凱宇', '蔡凱宇', '張委員、李委員', '高雄', '李雅慧', '女', '1980-01-01', '45', '作業員', '聽障重度',
+                '先天', '0912345678', 'client@example.com', '高中', '2022-03-01', '', '', '', '2026-01-15',
+                '上班時聽不清楚指令', ''
+            ];
+            const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+            ws['!cols'] = headers.map(h => ({ wch: ['申請單位地址','障礙情形','遭遇問題','個人特質','備註','訪視委員'].includes(h) ? 30 : 14 }));
+            XLSX.utils.book_append_sheet(wb, ws, '案件匯入');
+            const notes = [
+                ['個案總表匯入說明（此匯入資料為「權威來源」）'],
+                ['——————————————————————————————————'],
+                ['對象別：必須是 中高齡（工作站） / 身心障礙者 / 勞工就業通 其中一個'],
+                ['接案人員：主責者姓名（可用「接案人員」或「轄區承辦」當欄名）'],
+                ['訪視人員：實際跑訪視的專員（可用「訪視人員」或「訪視專員」當欄名）'],
+                ['訪視委員：多位以「、」分隔，例如「張委員、李委員」'],
+                ['重複比對：系統以「編號」為優先；若無編號，則以「申請單位 + 個案姓名」比對'],
+                ['重複處理：若案件已存在，只會「補上空欄位」，不會覆蓋你已填好的資料'],
+                ['特殊情境：若案件已由審查會議匯入（stage=待訪視、owner=空），本次匯入會把你的欄位補上，且 stage 會自動升級'],
+                ['日期格式：YYYY-MM-DD（民國年請先換算）'],
+                ['欄位別名：每個欄位接受多個中文名，確切對照請見 index.html 中 CASE_IMPORT_FIELDS']
+            ];
+            const ws2 = XLSX.utils.aoa_to_sheet(notes);
+            ws2['!cols'] = [{ wch: 80 }];
+            XLSX.utils.book_append_sheet(wb, ws2, '說明');
+            XLSX.writeFile(wb, '個案總表匯入範本.xlsx');
+            showToast('個案總表匯入範本已下載');
+        });
+
+        // 匯入處理
+        document.getElementById('excel-upload')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file || !currentUser) { e.target.value = ''; return; }
+            const statusEl = document.getElementById('case-import-status');
+            const setStatus = (html, cls) => {
+                statusEl.className = `${cls || 'bg-blue-50 border border-blue-200 text-blue-800'} rounded-xl p-3 text-sm font-medium mb-2`;
+                statusEl.innerHTML = html;
+                statusEl.classList.remove('hidden');
+            };
+            try {
+                setStatus('<i class="fa-solid fa-spinner fa-spin mr-1"></i>讀取檔案中...');
+                const buf = await file.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array' });
+                // 優先找「案件匯入」分頁，否則用第一個
+                let sheetName = wb.SheetNames.find(n => /案件|匯入|cases?/i.test(n)) || wb.SheetNames[0];
+                const ws = wb.Sheets[sheetName];
+                const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+                if (rows.length === 0) {
+                    setStatus('⚠️ 檔案無資料。請使用「下載範本」後填入再匯入。', 'bg-amber-50 border border-amber-200 text-amber-800');
+                    e.target.value = '';
+                    return;
+                }
+                // 建立 zh->key 對照（支援多別名）
+                const zhToKey = {};
+                CASE_IMPORT_FIELDS.forEach(f => {
+                    const aliases = Array.isArray(f.zh) ? f.zh : [f.zh];
+                    aliases.forEach(a => { zhToKey[String(a).trim()] = f.key; });
+                });
+
+                // 轉成 Firestore 欄位物件
+                const normalized = rows.map(r => {
+                    const o = {};
+                    Object.keys(r).forEach(zh => {
+                        const k = zhToKey[zh.trim()];
+                        if (!k) return;
+                        const v = String(r[zh] || '').trim();
+                        if (v) o[k] = v;
+                    });
+                    // committeesRaw → committees 陣列（「、」、「,」、「，」分隔）
+                    if (o.committeesRaw) {
+                        const arr = String(o.committeesRaw).split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+                        if (arr.length) o.committees = arr;
+                        delete o.committeesRaw;
+                    }
+                    return o;
+                }).filter(o => o.company || o.clientName || o.caseNo);
+
+                if (normalized.length === 0) {
+                    setStatus('⚠️ 欄位都未命中，請參考範本的標頭命名', 'bg-amber-50 border border-amber-200 text-amber-800');
+                    e.target.value = '';
+                    return;
+                }
+
+                setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>比對與寫入中 (0/${normalized.length})...`);
+
+                let created = 0, merged = 0, skipped = 0;
+                const now = new Date().toISOString();
+
+                for (let i = 0; i < normalized.length; i++) {
+                    const row = normalized[i];
+                    setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>處理中 ${i+1}/${normalized.length}...`);
+
+                    // 找對應案件
+                    let existing = null;
+                    if (row.caseNo) existing = casesData.find(c => (c.caseNo || '').trim() === row.caseNo);
+                    if (!existing && row.company && row.clientName) {
+                        existing = casesData.find(c => (c.company || '').trim() === row.company && (c.clientName || '').trim() === row.clientName);
+                    }
+                    if (!existing && row.company && !row.clientName) {
+                        // 中高齡工作站或僅有單位者
+                        existing = casesData.find(c => (c.company || '').trim() === row.company && !c.clientName);
+                    }
+
+                    if (existing) {
+                        // 補空不覆蓋（陣列類欄位如 committees 若現存為空陣列亦視為空）
+                        const patch = {};
+                        Object.keys(row).forEach(k => {
+                            const cur = existing[k];
+                            const isEmpty = cur === undefined || cur === null
+                                || (Array.isArray(cur) ? cur.length === 0 : String(cur).trim() === '');
+                            if (isEmpty) patch[k] = row[k];
+                        });
+                        // 若舊案為 meeting-import 佔位、且此次帶入了訪視日期 → 升級階段
+                        if (row.visitDate && (!existing.stage || existing.stage === '待訪視') && (!existing.visitDate)) {
+                            patch.stage = '訪視中';
+                        }
+                        if (Object.keys(patch).length > 0) {
+                            patch.updatedAt = serverTimestamp();
+                            patch.importMergedAt = now;
+                            try {
+                                await updateDoc(doc(db, 'users', currentUser.uid, 'cases', existing.id), patch);
+                                merged++;
+                            } catch(err) { console.warn('merge fail', err); skipped++; }
+                        } else {
+                            skipped++;
+                        }
+                    } else {
+                        // 建立新案件
+                        const newCase = {
+                            ...row,
+                            stage: row.visitDate ? '訪視中' : '待訪視',
+                            createdFrom: 'excel-import',
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                            photos: [], audios: [], files: [], checklist: {},
+                            env: { lux: '', noise: '', height: '', weight: '' },
+                            report: { status: row.clientCondition || '', limits: '', analysis: row.initialProblems ? `申請書反映問題：\n${row.initialProblems}` : '', strategy: '' },
+                            outcome: { resolution: '', acceptance: '', benefit: '', closeDate: '' },
+                            reportCompleted: false,
+                            reportCompletedAt: ''
+                        };
+                        if (!newCase.category) newCase.category = '身心障礙者'; // 預設
+                        // ⚠️ 不自動填 owner：以案件總表匯入的資料為正確，未提供就留空，之後在案件編輯中補
+                        if (newCase.category === '中高齡（工作站）' && !newCase.clientName) newCase.clientName = '（工作站案件）';
+                        try {
+                            await addDoc(collection(db, 'users', currentUser.uid, 'cases'), newCase);
+                            created++;
+                        } catch(err) { console.warn('create fail', err); skipped++; }
+                    }
+                }
+
+                setStatus(`✅ 匯入完成：新建 <b>${created}</b> 件，合併補空 <b>${merged}</b> 件${skipped ? `，略過 ${skipped} 件` : ''}。`, 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+                showToast(`匯入完成：新建 ${created}、合併 ${merged}`);
+            } catch(err) {
+                console.error('[案件匯入] 失敗', err);
+                setStatus('❌ 匯入失敗：' + (err.message || err), 'bg-red-50 border border-red-200 text-red-800');
+            }
+            e.target.value = '';
+        });
 
     </script>
 
