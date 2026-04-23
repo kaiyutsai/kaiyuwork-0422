@@ -1147,6 +1147,9 @@
                             <p class="text-center text-slate-400 py-10">請選擇日期</p>
                         </div>
 
+                        <!-- 🆕 訪視評估表上傳用的隱藏 file input（行程卡片 + 詳情頁共用） -->
+                        <input type="file" id="sched-doc-file-input" accept=".docx,.pdf,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" class="hidden">
+
                     </div>
                 </div><!-- end verify-schedule -->
 
@@ -13941,23 +13944,25 @@ ${rawDraft}
                             <div><label class="block text-xs font-bold text-slate-500 mb-1">成效驗收日 <span class="text-purple-500">=</span> 結案日</label><input type="date" class="v-field w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-400" data-field="verificationDate" value="${c.verificationDate||''}"></div>
                         </div>
 
-                        <!-- 訪視評估表上傳區（在基本資料展開內） -->
+                        <!-- 🆕 訪視評估表：僅顯示（檔案來源與儀表板「完成報告」串接，不在此上傳） -->
                         <div class="mt-4 p-3 rounded-xl border ${hasDoc ? 'border-blue-200 bg-blue-50' : 'border-dashed border-slate-300 bg-slate-50'} flex items-center gap-3 flex-wrap">
                             <i class="fa-solid fa-file-word ${hasDoc ? 'text-blue-500' : 'text-slate-300'} text-lg shrink-0"></i>
                             <div class="flex-1 min-w-0" style="min-width:120px;">
                                 ${hasDoc
-                                    ? `<p class="text-sm font-bold text-blue-700 truncate">${(docFile.filename||'').replace(/</g,'&lt;')}</p>
-                                       <p class="text-xs text-slate-400 mt-0.5">上傳於 ${docFile.uploadedAt ? new Date(docFile.uploadedAt).toLocaleDateString('zh-TW') : '未知時間'}</p>`
-                                    : `<p class="text-sm text-slate-500 font-bold">訪視評估表（.docx / .pdf）</p>
-                                       <p class="text-xs text-slate-400 mt-0.5">上傳後可隨時浮動預覽</p>`
+                                    ? `<p class="text-sm font-bold text-blue-700 truncate">${(docFile.filename||'訪視評估表').replace(/</g,'&lt;')}</p>
+                                       <p class="text-xs text-slate-400 mt-0.5">來源：儀表板「完成報告」上傳</p>`
+                                    : `<p class="text-sm text-slate-500 font-bold">尚未上傳訪視評估表</p>
+                                       <p class="text-xs text-slate-400 mt-0.5">請至「儀表板 → 完成報告」區塊上傳</p>`
                                 }
                             </div>
-                            <button onclick="window.vTriggerDocUpload('${caseId}')"
-                                    class="shrink-0 ${hasDoc ? 'bg-blue-500 hover:bg-blue-600' : 'bg-purple-500 hover:bg-purple-600'} text-white text-xs font-bold px-3 rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
-                                    style="min-height:40px;">
-                                <i class="fa-solid ${hasDoc ? 'fa-arrow-up-from-bracket' : 'fa-upload'}"></i>
-                                ${hasDoc ? '重新上傳' : '選擇上傳'}
-                            </button>
+                            ${hasDoc
+                                ? `<button onclick="window.vPreviewDocFloat('${caseId}')"
+                                        class="shrink-0 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
+                                        style="min-height:40px;">
+                                    <i class="fa-solid fa-eye"></i>預覽評估表
+                                </button>`
+                                : `<span class="shrink-0 text-xs text-slate-400 italic">（無可預覽檔案）</span>`
+                            }
                         </div>
 
                         <button onclick="window.vSaveBasicInfo()" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-base transition-colors active:scale-[0.98] flex items-center justify-center gap-2" style="min-height:48px;"><i class="fa-solid fa-floppy-disk"></i>儲存基本資料</button>
@@ -15514,6 +15519,14 @@ ${rawDraft}
                 const status = _STAGE_TO_VSTATUS[c.stage] || 'pending';
                 const supp = supps[c.id] || {};
                 const suppItems = supp.items || [];
+                // 🆕 訪視評估表優先取儀表板上傳的 evalReportFileUrl（與儀表板串接）
+                const evalUrl = c.evalReportFileUrl || c.unitEvalReportFileUrl || '';
+                const docFileFromEval = evalUrl ? {
+                    previewUrl: evalUrl,
+                    downloadUrl: evalUrl,
+                    filename: '訪視評估表',
+                    fromDashboard: true
+                } : null;
                 verifyData.cases.push({
                     id: c.id,
                     caseNo: c.caseNo || '',
@@ -15528,7 +15541,7 @@ ${rawDraft}
                     status: status,
                     noReview: reviews.length === 0,   // 🆕 無審查資料提醒
                     address: supp.address || c.address || '',
-                    docFile: supp.docFile || null,
+                    docFile: docFileFromEval || supp.docFile || null,
                     verificationDate: c.verificationDate || supp.verificationDate || '',
                     notes: supp.notes || '',
                     items: reviews.map((r, idx) => ({
@@ -15617,10 +15630,20 @@ ${rawDraft}
                 //    個人原本的編號另外保留在 personalCaseNo 欄位。
                 const unitLevelCaseNo = unitCaseNo || comp;
                 const unitNoReview = byName.size === 0;   // 🆕 該單位沒審查品項
+                // 🆕 單位層級評估表 URL（任一成員有 unitEvalReportFileUrl 即用；否則取第一位 rep）
+                const unitEvalUrl = (g.members.find(m => m.unitEvalReportFileUrl) || {}).unitEvalReportFileUrl || '';
                 for (const m of g.members) {
                     // 🆕 預設全員 pending（不再因 stage/items 空而排除，確保單位人員都出現）
                     const mStatus = _STAGE_TO_VSTATUS[m.stage] || 'pending';
                     const supp = supps[m.id] || {};
+                    // 🆕 訪視評估表：優先成員自己的 evalReportFileUrl，再退回單位層級的 unitEvalReportFileUrl
+                    const mEvalUrl = m.evalReportFileUrl || unitEvalUrl || '';
+                    const docFileFromEval = mEvalUrl ? {
+                        previewUrl: mEvalUrl,
+                        downloadUrl: mEvalUrl,
+                        filename: '訪視評估表',
+                        fromDashboard: true
+                    } : null;
                     verifyData.cases.push({
                         id: m.id,
                         caseNo: unitLevelCaseNo,
@@ -15639,7 +15662,7 @@ ${rawDraft}
                         visitDate: formatDateYMD(m.visitDate || m.date) || '',   // 🆕 供排序
                         notes: supp.notes || '',
                         address: supp.address || m.address || '',
-                        docFile: supp.docFile || null,
+                        docFile: docFileFromEval || supp.docFile || null,
                         _unitMemberIds: [...memberIds],
                         items: [],
                     });
