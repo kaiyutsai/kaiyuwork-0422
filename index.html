@@ -1657,6 +1657,7 @@
       };
 
       let firebaseServices = null;
+      let firebaseAuthPersistencePromise = null;
       let authObserverBound = false;
       let redirectResultChecked = false;
 
@@ -1991,6 +1992,10 @@
           !sessionStorage.getItem(AUTO_LOGIN_SESSION_KEY);
       }
 
+      function isViewActive(viewName) {
+        return state.currentView === viewName;
+      }
+
       function isPermissionDeniedError(error) {
         const message = String(error?.message || "").toLowerCase();
         return error?.code === "permission-denied" || message.includes("insufficient permissions");
@@ -2024,6 +2029,20 @@
         return firebaseServices;
       }
 
+      async function ensureFirebaseAuthPersistence() {
+        const { auth } = ensureFirebaseReady();
+        if (!firebaseAuthPersistencePromise) {
+          firebaseAuthPersistencePromise = auth
+            .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+            .catch((error) => {
+              firebaseAuthPersistencePromise = null;
+              throw error;
+            });
+        }
+        await firebaseAuthPersistencePromise;
+        return auth;
+      }
+
       function mapFirebaseUser(user) {
         if (!user) return null;
         return {
@@ -2055,59 +2074,65 @@
 
       function bindFirebaseAuthObserver() {
         if (authObserverBound) return;
-        const { auth } = ensureFirebaseReady();
         authObserverBound = true;
-        auth.onAuthStateChanged(async (user) => {
-          const wasSignedIn = Boolean(state.user);
-          state.user = mapFirebaseUser(user);
-          if (!user) {
-            state.accessToken = "";
-            if (wasSignedIn) {
-              state.recycleAssets = [];
-              state.projectAssets = [];
-              state.loans = [];
-              state.cases = [];
-              state.allowedUsers = [];
-              state.selectedCaseId = "";
-              renderAll();
-            }
-            updateSyncBadge("請先登入 Google / Firebase", "idle");
-            if (shouldAutoSignIn()) {
-              sessionStorage.setItem(AUTO_LOGIN_SESSION_KEY, "1");
+        ensureFirebaseAuthPersistence()
+          .then((auth) => {
+            auth.onAuthStateChanged(async (user) => {
+              const wasSignedIn = Boolean(state.user);
+              state.user = mapFirebaseUser(user);
+              if (!user) {
+                state.accessToken = "";
+                if (wasSignedIn) {
+                  state.recycleAssets = [];
+                  state.projectAssets = [];
+                  state.loans = [];
+                  state.cases = [];
+                  state.allowedUsers = [];
+                  state.selectedCaseId = "";
+                  renderAll();
+                }
+                updateSyncBadge("請先登入 Google / Firebase", "idle");
+                if (shouldAutoSignIn()) {
+                  sessionStorage.setItem(AUTO_LOGIN_SESSION_KEY, "1");
+                  try {
+                    updateSyncBadge("正在登入 Google...", "loading");
+                    await triggerGoogleSignIn({ auto: true });
+                  } catch (error) {
+                    console.error(error);
+                    localStorage.setItem(AUTO_LOGIN_DISABLED_KEY, "1");
+                    updateSyncBadge(error.message || "Google 登入失敗", "error");
+                  }
+                }
+                return;
+              }
               try {
-                updateSyncBadge("正在登入 Google...", "loading");
-                await triggerGoogleSignIn({ auto: true });
+                localStorage.removeItem(AUTO_LOGIN_DISABLED_KEY);
+                sessionStorage.removeItem(AUTO_LOGIN_SESSION_KEY);
+                if (!state.accessToken) {
+                  await restoreDriveAccessTokenFromRedirect();
+                }
+                if (!wasSignedIn) {
+                  updateSyncBadge("已登入，正在同步資料...", "loading");
+                }
+                await refreshRemoteData();
               } catch (error) {
                 console.error(error);
-                localStorage.setItem(AUTO_LOGIN_DISABLED_KEY, "1");
-                updateSyncBadge(error.message || "Google 登入失敗", "error");
+                updateSyncBadge("Firebase 同步失敗", "error");
               }
-            }
-            return;
-          }
-          try {
-            localStorage.removeItem(AUTO_LOGIN_DISABLED_KEY);
-            sessionStorage.removeItem(AUTO_LOGIN_SESSION_KEY);
-            if (!state.accessToken) {
-              await restoreDriveAccessTokenFromRedirect();
-            }
-            await bootstrapDriveStorage();
-            if (!wasSignedIn) {
-              updateSyncBadge("已登入，正在同步資料...", "loading");
-            }
-            await refreshRemoteData();
-          } catch (error) {
+            });
+          })
+          .catch((error) => {
             console.error(error);
-            updateSyncBadge("Firebase 同步失敗", "error");
-          }
-        });
+            updateSyncBadge("Google 驗證初始化失敗", "error");
+          });
       }
 
       async function signInWithGoogle(options = {}) {
         const { preferRedirect = false } = options;
-        const { auth } = ensureFirebaseReady();
+        const auth = await ensureFirebaseAuthPersistence();
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope("https://www.googleapis.com/auth/drive.file");
+        provider.setCustomParameters({ prompt: "select_account" });
         const useRedirect = preferRedirect || window.matchMedia("(max-width: 768px)").matches;
         if (useRedirect) {
           await auth.signInWithRedirect(provider);
@@ -2117,7 +2142,6 @@
         const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
         state.user = mapFirebaseUser(result.user);
         state.accessToken = credential?.accessToken || "";
-        await bootstrapDriveStorage();
         return state.user;
       }
 
@@ -2660,16 +2684,29 @@
       }
 
       async function hydrateDriveImages(scope = document) {
-        if (!state.accessToken) return;
         const targets = [...scope.querySelectorAll("[data-drive-file-id]")];
         await Promise.all(
           targets.map(async (node) => {
             try {
+              const currentUrl = normalizeText(
+                node.tagName === "IMG" ? node.getAttribute("src") : node.dataset.photoUrl,
+              );
+              if (/drive\.google\.com\/thumbnail/i.test(currentUrl)) {
+                if (node.tagName === "IMG") {
+                  node.loading = "lazy";
+                  node.decoding = "async";
+                }
+                node.dataset.photoUrl = currentUrl;
+                return;
+              }
+              if (!state.accessToken) return;
               const fileId = node.dataset.driveFileId;
               const photo = { fileId };
               const url = await ensurePhotoObjectUrl(photo);
               if (node.tagName === "IMG") {
                 node.src = url;
+                node.loading = "lazy";
+                node.decoding = "async";
               }
               node.dataset.photoUrl = url;
             } catch (error) {
@@ -2854,6 +2891,7 @@
       }
 
       function renderDashboardRecycleSummary() {
+        if (!isViewActive("dashboard")) return;
         const assets = getDecoratedAssets("recycle");
         if (assets.length === 0) {
           elements.dashboardRecycleSummary.innerHTML = "";
@@ -2888,6 +2926,7 @@
       }
 
       function renderDashboardProjectSummary() {
+        if (!isViewActive("dashboard")) return;
         const assets = getDecoratedAssets("project");
         if (assets.length === 0) {
           elements.dashboardProjectSummary.innerHTML = '<div class="empty-state">同步單位 / 工具資料後，這裡會顯示單位摘要。</div>';
@@ -2975,6 +3014,7 @@
       }
 
       function renderRecycleWorkspace() {
+        if (!isViewActive("recycle")) return;
         const assets = getDecoratedAssets("recycle");
         if (assets.length === 0) {
           elements.recycleSummaryGrid.className = "stack-list";
@@ -3041,8 +3081,8 @@
                 <td>${
                   asset.primaryPhoto
                     ? asset.primaryPhoto.fileId
-                      ? `<img class="thumb" src="${asset.primaryPhoto.url}" alt="${asset.name}" data-photo-url="${asset.primaryPhoto.url}" data-drive-file-id="${asset.primaryPhoto.fileId}" data-photo-meta="${asset.code}｜${asset.name}" />`
-                      : `<img class="thumb" src="${asset.primaryPhoto.url}" alt="${asset.name}" data-photo-url="${asset.primaryPhoto.url}" data-photo-meta="${asset.code}｜${asset.name}" />`
+                      ? `<img class="thumb" loading="lazy" decoding="async" src="${asset.primaryPhoto.url}" alt="${asset.name}" data-photo-url="${asset.primaryPhoto.url}" data-drive-file-id="${asset.primaryPhoto.fileId}" data-photo-meta="${asset.code}｜${asset.name}" />`
+                      : `<img class="thumb" loading="lazy" decoding="async" src="${asset.primaryPhoto.url}" alt="${asset.name}" data-photo-url="${asset.primaryPhoto.url}" data-photo-meta="${asset.code}｜${asset.name}" />`
                     : '<div class="thumb-placeholder">無照片</div>'
                 }</td>
                 <td><strong>${asset.code || "未填"}</strong></td>
@@ -3170,6 +3210,7 @@
       }
 
       function renderCountySummary() {
+        if (!isViewActive("dashboard")) return;
         const assets = getDecoratedAssets("recycle");
         if (assets.length === 0) {
           elements.countySummary.innerHTML = '<div class="empty-state">同步回收輔具後，這裡會顯示縣市分布。</div>';
@@ -3196,6 +3237,7 @@
       }
 
       function renderInventoryFeed() {
+        if (!isViewActive("dashboard")) return;
         const recentLoans = [...state.loans]
           .sort((a, b) => `${b.date || b.createdAt || ""}`.localeCompare(`${a.date || a.createdAt || ""}`))
           .slice(0, 6);
@@ -3281,6 +3323,7 @@
       }
 
       function renderAssetTable() {
+        if (!isViewActive("assets")) return;
         const assets = getVisibleAssets();
         const config = getAssetDatasetConfig();
         if (assets.length === 0) {
@@ -3292,8 +3335,8 @@
             const primaryPhoto = asset.primaryPhoto;
             const photoCell = primaryPhoto
               ? primaryPhoto.fileId
-              ? `<img class="thumb" src="${primaryPhoto.url}" alt="${asset.name}" data-photo-url="${primaryPhoto.url}" data-drive-file-id="${primaryPhoto.fileId}" data-photo-meta="${asset.code}｜${asset.name}" />`
-                : `<img class="thumb" src="${primaryPhoto.url}" alt="${asset.name}" data-photo-url="${primaryPhoto.url}" data-photo-meta="${asset.code}｜${asset.name}" />`
+              ? `<img class="thumb" loading="lazy" decoding="async" src="${primaryPhoto.url}" alt="${asset.name}" data-photo-url="${primaryPhoto.url}" data-drive-file-id="${primaryPhoto.fileId}" data-photo-meta="${asset.code}｜${asset.name}" />`
+                : `<img class="thumb" loading="lazy" decoding="async" src="${primaryPhoto.url}" alt="${asset.name}" data-photo-url="${primaryPhoto.url}" data-photo-meta="${asset.code}｜${asset.name}" />`
               : '<div class="thumb-placeholder">無照片</div>';
             const metaCell = config.key === "project"
               ? [asset.brand, asset.model].filter(Boolean).join(" / ") || "-"
@@ -3340,8 +3383,8 @@
               <div class="photo-stack-item">
                 ${
                   photo.fileId
-                    ? `<img class="thumb" src="${photo.url}" alt="${asset.name}" data-photo-url="${photo.url}" data-drive-file-id="${photo.fileId}" data-photo-meta="${asset.code}｜${asset.name}" data-photo-index="${index}" />`
-                    : `<img class="thumb" src="${photo.url}" alt="${asset.name}" data-photo-url="${photo.url}" data-photo-meta="${asset.code}｜${asset.name}" data-photo-index="${index}" />`
+              ? `<img class="thumb" loading="lazy" decoding="async" src="${photo.url}" alt="${asset.name}" data-photo-url="${photo.url}" data-drive-file-id="${photo.fileId}" data-photo-meta="${asset.code}｜${asset.name}" data-photo-index="${index}" />`
+                : `<img class="thumb" loading="lazy" decoding="async" src="${photo.url}" alt="${asset.name}" data-photo-url="${photo.url}" data-photo-meta="${asset.code}｜${asset.name}" data-photo-index="${index}" />`
                 }
                 <small>${truncateText(photo.name || photo.note || "照片", 14)}</small>
               </div>
@@ -3678,6 +3721,7 @@
       }
 
       function renderLoanTable() {
+        if (!isViewActive("loans")) return;
         if (state.loans.length === 0) {
           elements.loanTableBody.innerHTML = '<tr><td colspan="7" class="muted-cell">尚無借還紀錄。</td></tr>';
           return;
@@ -3701,6 +3745,7 @@
       }
 
       function renderCasePreview() {
+        if (!isViewActive("cases")) return;
         if (state.importedCases.length === 0) {
           elements.casePreview.className = "stack-list empty-state";
           elements.casePreview.textContent = "尚未匯入個案 Excel，平常可直接用上方新增對象。";
@@ -3722,6 +3767,7 @@
       }
 
       function renderCaseTable() {
+        if (!isViewActive("cases")) return;
         const availableCases = getAvailableCases();
         const searchValue = normalizeText(elements.caseSearchInput.value).toLowerCase();
         const filteredCases = availableCases.filter((entry) => {
@@ -4918,8 +4964,12 @@
       async function openPhotoModalFromDataset(dataset) {
         const meta = dataset.photoMeta || dataset.meta || "";
         let url = dataset.photoUrl || "";
-        if (!url && dataset.driveFileId) {
-          url = await ensurePhotoObjectUrl({ fileId: dataset.driveFileId });
+        if (dataset.driveFileId) {
+          try {
+            url = await ensurePhotoObjectUrl({ fileId: dataset.driveFileId });
+          } catch (error) {
+            console.error(error);
+          }
         }
         if (!url) return;
         elements.photoModalImage.src = url;
