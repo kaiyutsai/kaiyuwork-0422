@@ -712,6 +712,13 @@
         color: var(--muted);
       }
 
+      .status-detail {
+        margin: 0;
+        font-size: 0.92rem;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
       .filter-tab-row {
         display: flex;
         flex-wrap: wrap;
@@ -1349,6 +1356,7 @@
                     <span id="settings-role-pill" class="pill">訪客</span>
                     <span id="sync-badge" class="status-badge idle" title="尚未連線">未連線</span>
                   </div>
+                  <p id="sync-status-detail" class="status-detail">尚未連線</p>
                 </article>
 
                 <article class="preview-card settings-stack">
@@ -1708,6 +1716,7 @@
         userChip: document.querySelector("#user-chip"),
         refreshButton: document.querySelector("#refresh-btn"),
         syncBadge: document.querySelector("#sync-badge"),
+        syncStatusDetail: document.querySelector("#sync-status-detail"),
         settingsAccountName: document.querySelector("#settings-account-name"),
         settingsAccountEmail: document.querySelector("#settings-account-email"),
         settingsRolePill: document.querySelector("#settings-role-pill"),
@@ -2012,6 +2021,9 @@
         elements.syncBadge.textContent = compactText;
         elements.syncBadge.title = text;
         elements.syncBadge.className = `status-badge ${tone}`;
+        if (elements.syncStatusDetail) {
+          elements.syncStatusDetail.textContent = text;
+        }
       }
 
       function escapeDriveQuery(value) {
