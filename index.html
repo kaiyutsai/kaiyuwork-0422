@@ -16319,6 +16319,13 @@ ${rawDraft}
                     if (Object.keys(patch).length > 0) _writeVerifyBackToCase(tid, patch);
                 }
             }
+
+            // 3) 🆕 自動雲端同步：補充欄位變更後 1.5 秒推上 Firestore（背景同步、無干擾）
+            //    所有 input/checkbox/textarea 都經過此 wrapper，由 _scheduleAutoCloudSync 處理 debounce
+            //    橘色「儲存到雲端」手動按鈕仍保留（使用者可隨時手動立即推）
+            if (typeof currentVerifyCaseId !== 'undefined' && currentVerifyCaseId) {
+                _scheduleAutoCloudSync(currentVerifyCaseId);
+            }
         };
 
         // 🆕 顯示 Excel 匯入明細 modal
@@ -16394,10 +16401,13 @@ ${rawDraft}
 
         // 🆕 把指定 case 的補充資料推上 Firestore（cases/{id}.verifySupplement），跨裝置同步
         // 中高單位 case 會把同樣的 supplement 寫到該單位所有成員上
-        window.vSaveCaseToCloud = async function(caseId) {
-            if (!currentUser) { showToast('請先登入'); return; }
+        // opts.silent: true → 不跳 toast/alert、不抓 event 動按鈕（給自動同步用，失敗會 throw）
+        window.vSaveCaseToCloud = async function(caseId, opts) {
+            opts = opts || {};
+            const silent = opts.silent === true;
+            if (!currentUser) { if (!silent) showToast('請先登入'); if (silent) throw new Error('未登入'); return; }
             const c = (verifyData?.cases || []).find(x => x.id === caseId);
-            if (!c) { showToast('找不到案件'); return; }
+            if (!c) { if (!silent) showToast('找不到案件'); if (silent) throw new Error('找不到案件 ' + caseId); return; }
             const suppData = {
                 notes: c.notes || '',
                 address: c.address || '',
@@ -16415,7 +16425,7 @@ ${rawDraft}
             const targetIds = Array.isArray(c._unitMemberIds) && c._unitMemberIds.length
                 ? c._unitMemberIds
                 : [c.id];
-            const btn = event?.target?.closest?.('button');
+            const btn = silent ? null : ((typeof event !== 'undefined' && event) ? event?.target?.closest?.('button') : null);
             const orig = btn ? btn.innerHTML : '';
             if (btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>上傳中...'; btn.classList.add('opacity-60','pointer-events-none'); }
             try {
@@ -16435,13 +16445,86 @@ ${rawDraft}
                     const cached = (casesData || []).find(x => x.id === tid);
                     if (cached) cached.verifySupplement = suppData;
                 }
-                showToast(`✅ 已儲存到雲端（${targetIds.length} 筆案件同步）`);
+                if (!silent) showToast(`✅ 已儲存到雲端（${targetIds.length} 筆案件同步）`);
             } catch(err) {
                 console.error('[vSaveCaseToCloud] 失敗', err);
-                alert('儲存失敗：' + (err?.message || err));
+                if (!silent) alert('儲存失敗：' + (err?.message || err));
+                if (silent) throw err;
             } finally {
                 if (btn) { btn.innerHTML = orig; btn.classList.remove('opacity-60','pointer-events-none'); }
             }
+        };
+
+
+        // 🆕 自動雲端同步（debounced）— 任何補充欄位變更後 1.5 秒背景推到 Firestore
+        // 全頁面所有 input/checkbox/textarea 都經過 saveVerifyData()，這裡覆蓋全部欄位
+        const _AUTO_SYNC_DEBOUNCE_MS = 1500;
+        const _AUTO_SYNC_RETRY_MS = 5000;
+        let _autoSyncTimer = null;
+        let _autoSyncRetryTimer = null;
+        const _pendingAutoSync = new Set();
+        let _autoSyncStatus = 'idle';
+        let _autoSyncLastAt = null;
+        function _setAutoSyncStatus(s) { _autoSyncStatus = s; _renderAutoSyncBadge(); }
+        function _renderAutoSyncBadge() {
+            let el = document.getElementById('auto-sync-badge');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'auto-sync-badge';
+                el.style.cssText = 'position:fixed;bottom:1rem;right:1rem;z-index:9999;padding:0.5rem 0.85rem;border-radius:0.75rem;font-size:0.8125rem;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,0.12);transition:opacity 0.25s ease;pointer-events:none;';
+                document.body.appendChild(el);
+            }
+            const cfg = {
+                idle: null,
+                dirty:   { bg:'#fef3c7', fg:'#92400e', bd:'#fcd34d', icon:'fa-pen',                 text: () => '編輯中…' },
+                syncing: { bg:'#dbeafe', fg:'#1e40af', bd:'#93c5fd', icon:'fa-spinner fa-spin',     text: () => '雲端同步中…' },
+                synced:  { bg:'#d1fae5', fg:'#065f46', bd:'#6ee7b7', icon:'fa-cloud-arrow-up',      text: () => '已同步 ' + (_autoSyncLastAt ? _autoSyncLastAt.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : '') },
+                error:   { bg:'#fee2e2', fg:'#991b1b', bd:'#fca5a5', icon:'fa-triangle-exclamation', text: () => '同步失敗，將重試…' },
+            };
+            const c = cfg[_autoSyncStatus];
+            if (!c) { el.style.opacity = '0'; return; }
+            el.style.opacity = '1';
+            el.style.background = c.bg;
+            el.style.color = c.fg;
+            el.style.border = '1px solid ' + c.bd;
+            el.innerHTML = '<i class="fa-solid ' + c.icon + '" style="margin-right:0.4rem"></i>' + c.text();
+            if (_autoSyncStatus === 'synced') {
+                clearTimeout(_renderAutoSyncBadge._fadeTimer);
+                _renderAutoSyncBadge._fadeTimer = setTimeout(() => {
+                    if (_autoSyncStatus === 'synced') _setAutoSyncStatus('idle');
+                }, 2500);
+            }
+        }
+        async function _flushAutoCloudSync() {
+            if (_autoSyncRetryTimer) { clearTimeout(_autoSyncRetryTimer); _autoSyncRetryTimer = null; }
+            if (!currentUser || !db) { _setAutoSyncStatus('idle'); return; }
+            if (_pendingAutoSync.size === 0) { _setAutoSyncStatus('idle'); return; }
+            const ids = Array.from(_pendingAutoSync);
+            _pendingAutoSync.clear();
+            _setAutoSyncStatus('syncing');
+            let hadError = false;
+            for (const id of ids) {
+                try { await window.vSaveCaseToCloud(id, { silent: true }); }
+                catch (e) { console.warn('[autoSync] failed', id, e); hadError = true; _pendingAutoSync.add(id); }
+            }
+            if (hadError) {
+                _setAutoSyncStatus('error');
+                _autoSyncRetryTimer = setTimeout(_flushAutoCloudSync, _AUTO_SYNC_RETRY_MS);
+            } else {
+                _autoSyncLastAt = new Date();
+                _setAutoSyncStatus('synced');
+            }
+        }
+        function _scheduleAutoCloudSync(caseId) {
+            if (!caseId) return;
+            _pendingAutoSync.add(caseId);
+            _setAutoSyncStatus('dirty');
+            if (_autoSyncTimer) clearTimeout(_autoSyncTimer);
+            _autoSyncTimer = setTimeout(_flushAutoCloudSync, _AUTO_SYNC_DEBOUNCE_MS);
+        }
+        window.__autoSync = {
+            flush: _flushAutoCloudSync,
+            status: () => ({ status: _autoSyncStatus, pending: Array.from(_pendingAutoSync), lastAt: _autoSyncLastAt }),
         };
 
         // 停用原本寫入 verifyCases / unitItemsData 的邏輯（保留函數名字避免破壞既有呼叫）
@@ -16508,14 +16591,4 @@ ${rawDraft}
     <button id="btn-show-qr" onclick="document.getElementById('qr-modal').classList.remove('hidden')"
         class="fixed bottom-8 left-8 z-40 w-14 h-14 bg-[#06C755] text-white rounded-full shadow-xl flex items-center justify-center text-2xl hover:bg-[#05a847] active:scale-95 transition-all"
         title="顯示 LINE QR 名片">
-        <svg viewBox="0 0 24 24" class="w-7 h-7 fill-white" xmlns="http://www.w3.org/2000/svg"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
-    </button>
-
-</body>
-</html>
-
-
-
-
-
-
+        <svg viewBox="0 0 24 24" class="w-7 h-7 fill-white" xmlns="http://www.w3.org/2000/svg"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.
