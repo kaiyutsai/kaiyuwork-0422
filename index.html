@@ -143,7 +143,7 @@
             <i class="fa-solid fa-list block md:inline md:mr-1 text-sm md:text-base"></i><span class="block md:inline text-[11px] md:text-base">案件列表</span>
         </button>
         <button class="main-tab-btn flex-1 min-w-[72px] py-3 md:py-4 px-1 text-xs md:text-base font-bold text-slate-500 border-b-4 border-transparent hover:text-blue-500 whitespace-nowrap" data-target="dashboard">
-            <i class="fa-solid fa-chart-pie block md:inline md:mr-1 text-sm md:text-base"></i><span class="block md:inline text-[11px] md:text-base">儀表板</span>
+            <i class="fa-solid fa-chart-pie block md:inline md:mr-1 text-sm md:text-base"></i><span class="block md:inline text-[11px] md:text-base">報告作業區</span>
         </button>
         <button class="main-tab-btn flex-1 min-w-[72px] py-3 md:py-4 px-1 text-xs md:text-base font-bold text-slate-500 border-b-4 border-transparent hover:text-blue-500 whitespace-nowrap" data-target="visits">
             <i class="fa-solid fa-person-walking-arrow-right block md:inline md:mr-1 text-sm md:text-base"></i><span class="block md:inline text-[11px] md:text-base">訪視紀錄</span>
@@ -228,6 +228,17 @@
                     <button id="visits-next" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-sm font-bold active:scale-95 shrink-0"><i class="fa-solid fa-chevron-right"></i></button>
                     <button id="visits-today" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold active:scale-95 shrink-0"><i class="fa-regular fa-calendar-check mr-1"></i>今天</button>
                 </div>
+                <!-- 🆕 有訪視日期的快速跳轉清單（收合；依日期大到小；含身障/中高統計） -->
+                <details class="bg-sky-50 border border-sky-200 rounded-2xl group" ontoggle="this.open && window.renderVisitsDateList && window.renderVisitsDateList()">
+                    <summary class="p-3 cursor-pointer font-bold text-sky-800 flex items-center justify-between gap-2 select-none">
+                        <span><i class="fa-solid fa-calendar-days mr-1"></i>有訪視日期的清單</span>
+                        <i class="fa-solid fa-chevron-down text-sky-400 transition-transform group-open:rotate-180"></i>
+                    </summary>
+                    <div class="p-3 pt-0">
+                        <p class="text-xs text-slate-500 mb-2">日期由新到舊排序。點日期即跳至該日訪視清單。</p>
+                        <div id="visits-date-list" class="space-y-1.5 max-h-96 overflow-y-auto"></div>
+                    </div>
+                </details>
                 <!-- 摘要 -->
                 <div id="visits-summary" class="text-center text-slate-500 text-sm font-bold"></div>
                 <!-- 清單 -->
@@ -883,7 +894,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-base font-medium text-slate-600 mb-1">訪視專員</label>
+                        <label class="block text-base font-medium text-slate-600 mb-1">訪視專員（主） *</label>
                         <select id="form-inspector" class="w-full p-3 md:p-4 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-base md:text-lg bg-white">
                             <option value="">請選擇訪視專員</option>
                             <option value="蔡凱宇">蔡凱宇</option>
@@ -892,6 +903,19 @@
                             <option value="高湘怡">高湘怡</option>
                             <option value="黃國裕">黃國裕</option>
                         </select>
+                    </div>
+
+                    <!-- 🆕 協訪專員（可複選） -->
+                    <div>
+                        <label class="block text-base font-medium text-slate-600 mb-1">協訪專員（可複選）</label>
+                        <div id="form-co-inspectors" class="flex flex-wrap gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                            <label class="flex items-center gap-1.5 cursor-pointer text-base"><input type="checkbox" name="form-co-inspectors" value="蔡凱宇" class="w-4 h-4">蔡凱宇</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-base"><input type="checkbox" name="form-co-inspectors" value="方姿云" class="w-4 h-4">方姿云</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-base"><input type="checkbox" name="form-co-inspectors" value="陳秋媚" class="w-4 h-4">陳秋媚</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-base"><input type="checkbox" name="form-co-inspectors" value="高湘怡" class="w-4 h-4">高湘怡</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-base"><input type="checkbox" name="form-co-inspectors" value="黃國裕" class="w-4 h-4">黃國裕</label>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">主訪視之外有同事一起去訪視，請勾選</p>
                     </div>
 
                     <div>
@@ -1226,9 +1250,10 @@
                             <span id="ws-report-completed-time" class="block text-xs font-medium text-rose-700 mt-1">完成時間：未設定</span>
                         </span>
                     </label>
-                    <button id="btn-download-package" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-sm font-black shadow-md transition-transform active:scale-95">
-                        <i class="fa-solid fa-file-lines mr-2"></i> 下載文字檔
+                    <button id="btn-download-package" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-sm font-black shadow-md transition-transform active:scale-95" title="同時下載：①案件文字檔 ②接案評估參考 Word ③現場照片">
+                        <i class="fa-solid fa-download mr-2"></i> 下載參考資料
                     </button>
+                    <p class="text-[10px] text-slate-400 mt-1 text-center">文字檔 + 評估參考 Word + 現場照片</p>
                 </div>
 
                 <!-- 2. 四大頁籤按鈕 (垂直排列) -->
@@ -2002,11 +2027,12 @@
                     </div>
                 </div>
 
-                <!-- 下載文字檔 -->
+                <!-- 下載參考資料（文字檔 + 評估參考 Word + 現場照片） -->
                 <div class="p-4 border-t border-slate-100 mt-auto shrink-0">
-                    <button id="dis-btn-download-text" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow">
-                        <i class="fa-solid fa-file-lines mr-2"></i>下載文字檔
+                    <button id="dis-btn-download-text" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow" title="同時下載：①案件文字檔 ②接案評估參考 Word ③現場照片">
+                        <i class="fa-solid fa-download mr-2"></i>下載參考資料
                     </button>
+                    <p class="text-[10px] text-slate-400 mt-1 text-center">文字檔 + 評估參考 Word + 現場照片</p>
                 </div>
             </div>
 
@@ -2203,14 +2229,12 @@
                     </div>
                 </div>
 
-                <!-- 下載文字檔 / 下載照片 -->
+                <!-- 下載參考資料（文字檔 + 評估參考 Word + 現場照片） -->
                 <div class="p-4 border-t border-slate-100 shrink-0 flex flex-col gap-2">
-                    <button id="elder-btn-download-text" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow">
-                        <i class="fa-solid fa-file-lines mr-2"></i>下載文字檔
+                    <button id="elder-btn-download-text" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow" title="同時下載：①案件文字檔 ②接案評估參考 Word ③現場照片">
+                        <i class="fa-solid fa-download mr-2"></i>下載參考資料
                     </button>
-                    <button id="elder-btn-download-photos" class="w-full bg-teal-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-teal-700 transition-colors shadow">
-                        <i class="fa-solid fa-images mr-2"></i>下載所有照片
-                    </button>
+                    <p class="text-[10px] text-slate-400 text-center">文字檔 + 評估參考 Word + 現場照片</p>
                 </div>
             </div>
 
@@ -2449,6 +2473,25 @@
             </div><!-- end elder-main-area -->
         </div><!-- end flex body -->
     </div><!-- end view-ws-elder -->
+
+    <!-- 🆕 Excel 匯入明細視窗（modal） -->
+    <div id="import-detail-modal" class="hidden fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4" onclick="if(event.target===this) window.closeImportDetailModal()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
+            <div class="bg-blue-600 text-white px-5 py-3 flex items-center justify-between gap-2">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-list-check mr-2"></i>Excel 匯入明細</h3>
+                <button onclick="window.closeImportDetailModal()" class="text-white hover:text-blue-200 text-2xl leading-none p-1" title="關閉">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="import-detail-summary" class="px-5 py-3 bg-blue-50 border-b border-blue-200 text-sm font-bold text-blue-800"></div>
+            <div id="import-detail-body" class="flex-1 overflow-y-auto p-5 space-y-3"></div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                <button onclick="window.closeImportDetailModal()" class="bg-slate-600 hover:bg-slate-700 text-white px-5 py-2 rounded-lg font-bold">
+                    <i class="fa-solid fa-check mr-1"></i>知道了
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 🌟 懸浮預覽視窗 (PiP) -->
     <div id="preview-modal" class="hidden fixed top-20 right-6 w-80 md:w-[600px] h-[500px] md:h-[700px] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.4)] border border-slate-300 rounded-2xl z-[100] flex flex-col overflow-hidden resize transition-shadow focus-within:shadow-[0_20px_60px_rgba(59,130,246,0.4)]">
@@ -2760,13 +2803,23 @@
         //   1. 必須有 clientName（未命名案件一律不算）
         //   2. 必須有 owner (接案人員) 並且要在 PRIMARY_OWNER_ALIASES 裡
         // 中高齡工作站佔位名「（工作站案件）」也算命名，不排除
+        // 🆕 主責判斷改為「訪視專員 inspector」或「協訪專員 coInspectors」其中一位是凱宇/蔡凱宇
+        // 後相容：若 inspector / coInspectors 皆未設且舊欄位 owner 是凱宇，仍視為主責
         const isPrimaryCase = (c) => {
             if (!c) return false;
             const name = String(c.clientName || '').trim();
             if (!name) return false;
-            const owner = String(c.owner || '').trim();
-            if (!owner) return false;
-            return PRIMARY_OWNER_ALIASES.includes(owner);
+            const aliases = PRIMARY_OWNER_ALIASES;
+            const inspector = String(c.inspector || '').trim();
+            if (inspector && aliases.includes(inspector)) return true;
+            const co = Array.isArray(c.coInspectors) ? c.coInspectors : [];
+            if (co.some(x => aliases.includes(String(x || '').trim()))) return true;
+            // 後相容：舊資料未設 inspector / coInspectors，但 owner 是凱宇/蔡凱宇
+            if (!inspector && co.length === 0) {
+                const owner = String(c.owner || '').trim();
+                if (owner && aliases.includes(owner)) return true;
+            }
+            return false;
         };
         const normalizeText = (s) => String(s || '').trim().toLowerCase();
         const parseDistrictKeywords = (s) => String(s || '').split(/[,，、\n]/).map(x => x.trim()).filter(Boolean);
@@ -3318,7 +3371,11 @@
                     alert("離開前自動儲存失敗：" + (err?.message || err));
                     return;
                 }
-                showView('list', '訪視案件管理', true);
+                // 🆕 優先回到「進工作區前的 view」（如訪視紀錄、報告作業區）；沒記到才回案件列表
+                const v = _workspaceReturnView || 'list';
+                const t = _workspaceReturnTitle || '訪視案件管理';
+                _workspaceReturnView = null; _workspaceReturnTitle = null;
+                showView(v, t, true);
                 return;
             }
             if (window.history.length > 1) window.history.back();
@@ -3338,7 +3395,11 @@
                 return;
             }
             document.getElementById('view-ws-elder').classList.add('hidden');
-            showView('list', '訪視案件管理', true);
+            // 🆕 優先回到來源 view
+            const v = _workspaceReturnView || 'list';
+            const t = _workspaceReturnTitle || '訪視案件管理';
+            _workspaceReturnView = null; _workspaceReturnTitle = null;
+            showView(v, t, true);
         });
 
         // ==========================================
@@ -4150,6 +4211,7 @@
                     : 'bg-slate-100 text-slate-700';
                 const owner = getCaseOwner(item);
                 const inspector = String(item.inspector || '').trim();
+                const coInspectors = Array.isArray(item.coInspectors) ? item.coInspectors.filter(Boolean) : [];
                 // 轄區：優先 district，沒填就用 referralSource（身障 JA 表都填在轉介來源），去掉縣/市尾字做 chip
                 const districtRaw = String(item.district || item.referralSource || '').trim();
                 const district = districtRaw.replace(/縣|市/g, '');
@@ -4157,12 +4219,15 @@
                 const inspectorColor = isPrimaryOwner(inspector) ? 'bg-cyan-50 text-cyan-700 border border-cyan-100' : 'bg-slate-50 text-slate-600 border border-slate-200';
                 const completedBadge = isReportCompleted(item)
                     ? `<span class="text-[10px] bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded font-black whitespace-nowrap">✓${formatDateYMD(item.reportCompletedAt) || '-'}</span>` : '';
-                const ownerBadge = owner
-                    ? `<span class="text-[10px] ${ownerColor} px-2 py-0.5 rounded font-black whitespace-nowrap">訪視：${owner}</span>`
-                    : `<span class="text-[10px] bg-slate-100 text-slate-400 border border-slate-200 px-2 py-0.5 rounded font-bold whitespace-nowrap">訪視：未指派</span>`;
+                // 🆕 訪視 = inspector（主訪視專員），承辦 = owner（轄區承辦），協訪 = coInspectors
                 const inspectorDistrictSuffix = district ? `（${district}）` : '';
                 const inspectorBadge = inspector
-                    ? `<span class="text-[10px] ${inspectorColor} px-2 py-0.5 rounded font-black whitespace-nowrap">承辦：${inspector}${inspectorDistrictSuffix}</span>` : '';
+                    ? `<span class="text-[10px] ${inspectorColor} px-2 py-0.5 rounded font-black whitespace-nowrap">訪視：${inspector}${inspectorDistrictSuffix}</span>`
+                    : `<span class="text-[10px] bg-slate-100 text-slate-400 border border-slate-200 px-2 py-0.5 rounded font-bold whitespace-nowrap">訪視：未指派</span>`;
+                const coInspectorBadge = coInspectors.length
+                    ? `<span class="text-[10px] bg-cyan-50 text-cyan-700 border border-cyan-100 px-2 py-0.5 rounded font-bold whitespace-nowrap">協訪：${coInspectors.join('、')}</span>` : '';
+                const ownerBadge = owner
+                    ? `<span class="text-[10px] ${ownerColor} px-2 py-0.5 rounded font-bold whitespace-nowrap">承辦：${owner}</span>` : '';
                 const ddBadge = deadlineBadgeHtml(item);
                 const extraBadges = buildExtraFieldBadges(item);
                 const checked = selectedCaseIds.has(item.id);
@@ -4197,8 +4262,9 @@
                     <div class="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
                         <span class="truncate max-w-[180px]"><i class="fa-solid fa-building text-slate-400 mr-1"></i>${item.company || '無'}</span>
                         <span class="shrink-0"><i class="fa-solid fa-calendar text-slate-400 mr-1"></i>${formatDateYMD(item.visitDate || item.date) || '無'}<button class="ml-1 text-slate-400 hover:text-blue-600" title="編輯訪視日期" onclick="event.stopPropagation(); window.editCaseVisitDate('${item.id}', event)"><i class="fa-solid fa-pen-to-square text-[10px]"></i></button></span>
-                        ${ownerBadge}
                         ${inspectorBadge}
+                        ${coInspectorBadge}
+                        ${ownerBadge}
                         ${ddBadge}
                         ${completedBadge}
                         ${item.applicationFileUrl
@@ -4616,19 +4682,23 @@
                 c.reportCompletedAt = today;
                 if (c.stage !== '結案') c.stage = '報告完成';
             }
-            // 直接在 DOM 上把該單位所有成員 checkbox 勾起來、隱藏「全部完成報告」按鈕
-            // （不重新渲染，避免在「報告撰寫中」view 中單位整個消失造成困惑）
+            // 先立刻把 DOM 上的 checkbox 全部勾起來（視覺即時反饋）
             const listContainer = document.getElementById('dashboard-list-container');
             if (listContainer) {
                 for (const c of people) {
                     const cb = listContainer.querySelector(`.dash-done-chk[data-case-id="${c.id}"]`);
                     if (cb) cb.checked = true;
                 }
-                const safeUnit = String(unitName).replace(/"/g, '&quot;');
-                listContainer.querySelectorAll(`.dash-unit-complete[data-unit="${safeUnit}"]`).forEach(b => b.style.display = 'none');
             }
             showToast(`已標記完成 ${cnt - failed} 件${failed ? `（失敗 ${failed}）` : ''}`);
+            // 🆕 500ms 後重新渲染該清單（已完成者會自動從「報告撰寫中」移除）
+            setTimeout(() => {
+                if (dashListState && typeof window.showDashboardList === 'function') {
+                    window.showDashboardList(dashListState.type, dashListState.focus);
+                }
+            }, 500);
         }
+        window.completeEntireUnit = completeEntireUnit;
         // 記住最後一次 showDashboardList 的參數，讓動作後能重新渲染
         let dashListState = null;
         // 事件代理 — 儀表板清單內的 checkbox / 單位 buttons / 個人/單位 file upload
@@ -4901,6 +4971,79 @@
             visitsCurrentDate = dateInput.value;
             renderVisitsList();
         };
+        // 🆕 訪視紀錄：有訪視日期的快速清單（展開才渲染）
+        window.renderVisitsDateList = function() {
+            const el = document.getElementById('visits-date-list');
+            if (!el) return;
+            const isUnitCat = (c) => c && (c.category === '中高齡（工作站）' || c.category === '中高齡及高齡者' || c.category === '勞工就業通');
+            const byDate = new Map(); // ymd → { disabilityCount, unitMap: Map<company, count> }
+            for (const c of (casesData || [])) {
+                if (!isPrimaryCase(c)) continue;
+                for (const dateVal of [c.visitDate || c.date, c.visitDate2]) {
+                    const vd = formatDateYMD(dateVal);
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(vd)) continue;
+                    if (!byDate.has(vd)) byDate.set(vd, { disabilityCount: 0, unitMap: new Map() });
+                    const bucket = byDate.get(vd);
+                    if (isUnitCat(c)) {
+                        const unit = (c.company || '（未命名單位）').trim();
+                        bucket.unitMap.set(unit, (bucket.unitMap.get(unit) || 0) + 1);
+                    } else {
+                        bucket.disabilityCount++;
+                    }
+                }
+            }
+            if (byDate.size === 0) {
+                el.innerHTML = '<p class="text-center text-slate-400 py-4 text-sm">尚無任何訪視日期</p>';
+                return;
+            }
+            const todayStr = _schedLocalYMD(new Date());
+            const today = new Date(todayStr + 'T00:00:00');
+            const dated = [...byDate.keys()].map(d => {
+                const dt = new Date(d + 'T00:00:00');
+                const diff = Math.round((dt - today) / 86400000);
+                return { d, diff };
+            });
+            dated.sort((a, b) => b.d.localeCompare(a.d));
+            const weekdayFor = (ymd) => {
+                const dt = new Date(ymd + 'T00:00:00');
+                return isNaN(dt.getTime()) ? '' : '星期' + '日一二三四五六'[dt.getDay()];
+            };
+            el.innerHTML = dated.map(({ d, diff }) => {
+                const b = byDate.get(d);
+                const unitCount = b.unitMap.size;
+                const unitPeople = [...b.unitMap.values()].reduce((s, n) => s + n, 0);
+                const disCount = b.disabilityCount;
+                const label = diff === 0 ? '今天' : diff === 1 ? '明天' : diff === -1 ? '昨天' : (diff > 0 ? `${diff} 天後` : `${-diff} 天前`);
+                const badgeCls = diff === 0 ? 'bg-rose-100 text-rose-700 border-rose-200'
+                    : Math.abs(diff) <= 7 ? 'bg-amber-100 text-amber-700 border-amber-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200';
+                return `<button type="button" onclick="window.visitsJumpToDate('${d}')"
+                    class="w-full text-left bg-white border border-slate-200 rounded-lg p-2.5 hover:shadow-sm hover:border-sky-400 transition-all active:scale-[0.98]">
+                    <div class="flex items-center gap-1.5 flex-wrap mb-1">
+                        <span class="font-bold text-slate-800 text-sm">${d}</span>
+                        <span class="text-xs text-slate-500">${weekdayFor(d)}</span>
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${badgeCls}">${label}</span>
+                    </div>
+                    <div class="text-xs text-slate-600">
+                        ${disCount > 0 ? `<span class="text-emerald-700 font-bold">身障 ${disCount} 人</span>` : ''}
+                        ${disCount > 0 && (unitCount > 0) ? ' · ' : ''}
+                        ${unitCount > 0 ? `<span class="text-amber-700 font-bold">中高 ${unitCount} 家 · ${unitPeople} 人</span>` : ''}
+                        ${disCount === 0 && unitCount === 0 ? '<span class="text-slate-400">（無）</span>' : ''}
+                    </div>
+                </button>`;
+            }).join('');
+        };
+        // 🆕 跳到指定日期並重新渲染
+        window.visitsJumpToDate = function(ymd) {
+            visitsCurrentDate = ymd;
+            const input = document.getElementById('visits-date');
+            if (input) input.value = ymd;
+            renderVisitsList();
+            // 收合清單（UX：點完了順手關起來）
+            const det = document.getElementById('visits-date-list')?.closest('details');
+            if (det) det.open = false;
+        };
+
         function renderVisitsList() {
             const listEl = document.getElementById('visits-list');
             const sumEl  = document.getElementById('visits-summary');
@@ -5002,10 +5145,7 @@
                     </div>
                 </div>`;
             }
-            // 摘要資訊
-            if (inspectorList.length || ownerList.length || districtList.length) {
-                // (已顯示在 group header 的 meta 裡，這裡不再多加)
-            }
+            // 摘要資訊已顯示在 group header 的 meta 裡，這裡不再多加
             listEl.innerHTML = html;
         }
         // 事件綁定
@@ -5134,14 +5274,15 @@
                         const evalPreview = unitEvalUrl
                             ? `<button class="text-[11px] bg-purple-50 text-purple-700 border border-purple-300 px-2 py-1 rounded font-bold hover:bg-purple-100" onclick="event.stopPropagation(); window.openPreview('${unitEvalUrl}','${unitEvalUrl}','application/pdf','評估報告')" title="預覽評估報告"><i class="fa-solid fa-paperclip mr-1"></i>已上傳評估報告</button>`
                             : '';
-                        const actionBar = `<div class="flex items-center gap-1.5 flex-wrap shrink-0" onclick="event.stopPropagation()">
+                        const actionBar = `<div class="flex items-center gap-1.5 flex-wrap shrink-0" onclick="event.stopPropagation(); event.preventDefault();">
                             ${allDone ? `<span class="text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-300 px-2 py-1 rounded font-bold">✓ 全部完成</span>` : ''}
                             ${evalPreview}
                             <label class="dash-unit-eval-upload text-[11px] bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded font-bold cursor-pointer whitespace-nowrap" title="上傳單位評估報告（一份套用全員）">
                                 <i class="fa-solid fa-upload mr-1"></i>${unitEvalUrl ? '更換' : '上傳'}評估報告
                                 <input type="file" class="dash-unit-eval-upload-input hidden" accept="application/pdf,.pdf,.doc,.docx" data-unit="${safe}">
                             </label>
-                            ${!allDone ? `<button class="dash-unit-complete text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded font-bold whitespace-nowrap" data-unit="${safe}" title="把整個單位所有人員標記為完成報告">
+                            ${!allDone ? `<button type="button" class="dash-unit-complete text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded font-bold whitespace-nowrap" data-unit="${safe}" title="把整個單位所有人員標記為完成報告"
+                                    onclick="event.stopPropagation(); event.preventDefault(); window.completeEntireUnit(this.dataset.unit);">
                                 <i class="fa-solid fa-check mr-1"></i>全部完成報告
                             </button>` : ''}
                         </div>`;
@@ -5193,7 +5334,7 @@
                 e.currentTarget.classList.remove('text-slate-500', 'border-transparent');
                 e.currentTarget.classList.add('text-blue-600', 'border-b-4', 'border-blue-600');
                 const tgt = e.currentTarget.dataset.target;
-                const titleMap = { meetings: '審查會議管理', outcome: '成效評估', schedules: '差勤請款', verify: '成效驗收', visits: '訪視紀錄' };
+                const titleMap = { dashboard: '報告作業區', meetings: '審查會議管理', outcome: '成效評估', schedules: '差勤請款', verify: '成效驗收', visits: '訪視紀錄' };
                 showView(tgt, titleMap[tgt] || '訪視案件管理', true);
                 if(tgt === 'dashboard') updateDashboard();
                 if(tgt === 'meetings') window.renderMeetingsView && window.renderMeetingsView();
@@ -5304,11 +5445,32 @@
             if (failed) throw failed.reason || new Error('切換前自動儲存失敗');
         }
 
+        // 🆕 記住「開工作區前的 view」，讓 back 按鈕能回到來源頁（visits/dashboard/list 等）
+        let _workspaceReturnView = null;
+        let _workspaceReturnTitle = null;
+        function _recordWorkspaceReturn() {
+            const viewMap = { list: '訪視案件管理', dashboard: '報告作業區', visits: '訪視紀錄',
+                              meetings: '審查會議管理', verify: '成效驗收', schedules: '差勤請款', outcome: '成效評估' };
+            // 偵測目前哪個 view 是顯示狀態
+            for (const key of Object.keys(viewMap)) {
+                const el = DOM.views && DOM.views[key];
+                if (el && !el.classList.contains('hidden')) {
+                    _workspaceReturnView = key;
+                    _workspaceReturnTitle = viewMap[key];
+                    return;
+                }
+            }
+            _workspaceReturnView = null;
+            _workspaceReturnTitle = null;
+        }
         async function openWorkspace(id) {
             try {
                 if (isCaseSwitchSaving) return;
                 isCaseSwitchSaving = true;
                 setCaseSwitchUiLock(true);
+
+                // 🆕 在 DOM 切換前先記下來源頁
+                _recordWorkspaceReturn();
 
                 if (isRecording && currentEditingCaseId && currentEditingCaseId !== id) {
                     showToast("已切換案件，系統自動結束並上傳前一案件錄音");
@@ -5941,7 +6103,11 @@
             document.getElementById('view-dis-case').classList.add('hidden');
             document.getElementById('view-container-standard').classList.remove('hidden');
             currentDisCaseId = null;
-            showView('list', '訪視案件管理');
+            // 🆕 優先回到來源 view
+            const v = _workspaceReturnView || 'list';
+            const t = _workspaceReturnTitle || '訪視案件管理';
+            _workspaceReturnView = null; _workspaceReturnTitle = null;
+            showView(v, t, true);
         });
 
         // ==========================================
@@ -6346,6 +6512,19 @@
                 const a = document.createElement('a'); a.href=url; a.download=fileName;
                 document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
                 showToast('已下載身障案件文字檔');
+                // 🆕 同時下載接案評估參考 Word + 現場照片
+                setTimeout(async () => {
+                    try {
+                        if (typeof window.exportCaseReferenceDocx === 'function') {
+                            await window.exportCaseReferenceDocx(c.id, 'visit');
+                        }
+                        await new Promise(r => setTimeout(r, 300));
+                        if (typeof window.downloadCasePhotos === 'function') {
+                            const n = await window.downloadCasePhotos(c.id);
+                            if (n > 0) showToast(`✅ 已下載 ${n} 張現場照片`);
+                        }
+                    } catch(e) { console.warn('[下載參考資料]', e); }
+                }, 300);
             } catch (err) {
                 console.error('下載身障文字檔失敗', err);
                 alert('下載文字檔失敗：' + (err?.message || err));
@@ -7031,8 +7210,10 @@
             addIf('轄區', c.district);
             addIf('接案日期', c.intakeDate);
             addIf('初訪日期', c.visitDate);
-            addIf('主責人員', c.owner);
-            addIf('訪視人員', c.visitors);
+            addIf('訪視專員', c.inspector);
+            addIf('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
+            addIf('轄區承辦', c.owner);
+            addIf('訪視委員', c.visitors);
 
             addSection('共用申請設備');
             if (c.sharedEquipment && c.sharedEquipment.trim()) {
@@ -7131,6 +7312,19 @@
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
             showToast('文字檔已下載');
+            // 🆕 同時下載接案評估參考 Word + 現場照片
+            setTimeout(async () => {
+                try {
+                    if (typeof window.exportCaseReferenceDocx === 'function') {
+                        await window.exportCaseReferenceDocx(c.id, 'visit');
+                    }
+                    await new Promise(r => setTimeout(r, 300));
+                    if (typeof window.downloadCasePhotos === 'function') {
+                        const n = await window.downloadCasePhotos(c.id);
+                        if (n > 0) showToast(`✅ 已下載 ${n} 張現場照片`);
+                    }
+                } catch(e) { console.warn('[下載參考資料]', e); }
+            }, 300);
         });
 
         document.getElementById('btn-edit-case').addEventListener('click', () => {
@@ -7156,6 +7350,9 @@
             document.getElementById('form-visit-date').value = c.visitDate || c.date || '';
             const ownerField = document.getElementById('form-owner'); if (ownerField) ownerField.value = getCaseOwner(c);
             const inspectorField = document.getElementById('form-inspector'); if (inspectorField) inspectorField.value = c.inspector || '';
+            // 🆕 協訪專員 checkbox 還原
+            const coArr = Array.isArray(c.coInspectors) ? c.coInspectors : [];
+            document.querySelectorAll('input[name="form-co-inspectors"]').forEach(cb => { cb.checked = coArr.includes(cb.value); });
             pendingApplicationFileUrl = c.applicationFileUrl || '';
             updateApplicationFileButton(pendingApplicationFileUrl);
             renderDistrictOptions(c.district || '');
@@ -7609,6 +7806,9 @@
             addIf('個案/工作站', c.clientName);
             addIf('接案日', c.intakeDate);
             addIf('初訪日', c.visitDate || c.date);
+            addIf('訪視專員', c.inspector);
+            addIf('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
+            addIf('轄區承辦', c.owner);
             addIf('訪視委員', c.visitors);
             addIf('完成報告', c.reportCompleted ? '是' : '');
             addIf('完成時間', c.reportCompletedAt);
@@ -7738,8 +7938,55 @@
             }
         };
 
-        // 綁定按鈕
-        document.getElementById('btn-download-package')?.addEventListener('click', () => window.downloadCasePackage());
+        // 🆕 下載案件照片（工作區的 c.photos；檔名規則：{訪視日}_{姓名}({障別})_{類型}訪視_{N}.jpg）
+        window.downloadCasePhotos = async function(caseId) {
+            const c = (casesData || []).find(x => x.id === caseId);
+            if (!c) return 0;
+            const photos = Array.isArray(c.photos) ? c.photos : [];
+            if (photos.length === 0) return 0;
+            const catType = String(c.category || '').includes('身心障礙') || String(c.category || '').includes('單側') ? '身障' : '中高';
+            const disability = String(c.clientDisability || '').trim();
+            const discTag = disability ? `(${disability})` : '';
+            const clientName = c.clientName || c.company || '個案';
+            const visitYMD = formatDateYMD(c.visitDate || c.date) || new Date().toISOString().slice(0, 10);
+            let count = 0;
+            for (const p of photos) {
+                const src = p.url || p.previewUrl || '';
+                if (!src) continue;
+                count++;
+                const a = document.createElement('a');
+                a.href = src;
+                a.download = `${visitYMD}_${clientName}${discTag}_${catType}訪視_${count}.jpg`;
+                document.body.appendChild(a); a.click(); a.remove();
+                await new Promise(r => setTimeout(r, 200));
+            }
+            return count;
+        }
+        // 綁定按鈕：一次下載三樣（文字檔 + 評估參考 Word + 現場照片）
+        document.getElementById('btn-download-package')?.addEventListener('click', async () => {
+            if (!currentEditingCaseId) { showToast('請先選擇案件'); return; }
+            const btn = document.getElementById('btn-download-package');
+            const orig = btn ? btn.innerHTML : '';
+            if (btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> 打包下載中...'; btn.classList.add('opacity-60','pointer-events-none'); }
+            try {
+                // ① 文字檔
+                await window.downloadCasePackage();
+                await new Promise(r => setTimeout(r, 300));
+                // ② 接案評估參考 Word
+                if (typeof window.exportCaseReferenceDocx === 'function') {
+                    await window.exportCaseReferenceDocx(currentEditingCaseId, 'visit');
+                    await new Promise(r => setTimeout(r, 300));
+                }
+                // ③ 現場照片
+                const nPhotos = await window.downloadCasePhotos(currentEditingCaseId);
+                showToast(`✅ 已下載：文字檔、評估參考 Word${nPhotos ? `、${nPhotos} 張照片` : '（無照片）'}`);
+            } catch (err) {
+                console.error('[下載參考資料] 失敗', err);
+                showToast('❌ 下載失敗：' + err.message);
+            } finally {
+                if (btn) { btn.innerHTML = orig; btn.classList.remove('opacity-60','pointer-events-none'); }
+            }
+        });
 
 
 
@@ -7961,15 +8208,27 @@
             const category = document.querySelector('input[name="form-category"]:checked')?.value || '其他';
             const visitors = Array.from(document.querySelectorAll('input[name="chk-visitor"]:checked')).map(cb => cb.value).join('、');
             const district = (document.getElementById('form-district')?.value || '').trim();
-            let owner = (document.getElementById('form-owner')?.value || PRIMARY_OWNER).trim();
+            const formOwnerRaw = (document.getElementById('form-owner')?.value || '').trim();
+            let owner = (formOwnerRaw || PRIMARY_OWNER).trim();
             const districtOwner = getDistrictOwnerByName(district);
+            // 🆕 轄區規則覆蓋 owner 時提醒一下（不擋送出）；只在實際造成不同時才提醒
+            if (districtOwner && formOwnerRaw && districtOwner !== formOwnerRaw) {
+                showToast(`⚠️ 轄區「${district}」規則把承辦改為「${districtOwner}」（原選「${formOwnerRaw}」）。如要保留原值，請至系統設定調整轄區規則。`);
+            }
             if (districtOwner) owner = districtOwner;
             const inspector = (document.getElementById('form-inspector')?.value || '').trim();
+            // 🆕 協訪專員（可複選）
+            const coInspectors = Array.from(document.querySelectorAll('input[name="form-co-inspectors"]:checked')).map(cb => cb.value);
+            // 🆕 訪視專員未填→提醒（不擋送出）
+            if (!inspector) {
+                showToast('⚠️ 提醒：「訪視專員」尚未選擇，案件已存但建議補填。');
+            }
             const hireDateNormalized = normalizeHireDateInput(document.getElementById('form-hire-date')?.value || '');
             const data = {
                 category,
                 owner,
                 inspector,
+                coInspectors,   // 🆕 協訪專員陣列
                 district,
                 company: document.getElementById('form-company').value,
                 phone: document.getElementById('form-phone').value,
@@ -9960,8 +10219,10 @@ ${rawDraft}
             addKV('公司', c.company);
             addKV('訪視日期', c.visitDate);
             addKV('轄區', c.district);
-            addKV('負責人', c.owner);
-            addKV('訪視人員', c.visitors);
+            addKV('訪視專員', c.inspector);
+            addKV('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
+            addKV('轄區承辦', c.owner);
+            addKV('訪視委員', c.visitors);
 
             (c.workstations || []).forEach((ws, idx) => {
                 add('');
@@ -12513,6 +12774,271 @@ ${rawDraft}
         }
         window.exportTripScheduleDocx = exportTripScheduleDocx;
 
+        // ==========================================================================
+        // 🆕 接案評估參考資料 Word 匯出（給 Claude 當 context 用）
+        // 依使用者規劃：不在線上跑 AI，只把系統已有的欄位整理成參考文件，
+        // 使用者自行把訪談逐字稿 + 此文件貼給 Claude 綜合撰寫評估報告。
+        // ==========================================================================
+        // --- 日期格式化：YYYY-MM-DD → 2026年4月24日 ---
+        function _toYMDChinese(ymd) {
+            const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!m) return String(ymd || '');
+            return `${parseInt(m[1])}年${parseInt(m[2])}月${parseInt(m[3])}日`;
+        }
+        // --- 年資計算：hireDate → visitDate 的年月數 ---
+        function _calcSeniority(hireDate, baseDate) {
+            if (!hireDate) return '無';
+            const hire = new Date(String(hireDate).replace(/\//g, '-'));
+            const base = baseDate ? new Date(String(baseDate).replace(/\//g, '-')) : new Date();
+            if (isNaN(hire.getTime()) || isNaN(base.getTime())) return '無';
+            let years = base.getFullYear() - hire.getFullYear();
+            let months = base.getMonth() - hire.getMonth();
+            let days = base.getDate() - hire.getDate();
+            if (days < 0) months--;
+            if (months < 0) { years--; months += 12; }
+            if (years < 0) return '無';
+            if (years === 0 && months === 0) return '未滿 1 個月';
+            if (years === 0) return `${months} 個月`;
+            if (months === 0) return `${years} 年`;
+            return `${years} 年 ${months} 個月`;
+        }
+        async function exportCaseReferenceDocx(caseId, mode) {
+            // mode: 'visit' (接案評估參考資料 — 訪視階段) | 'outcome' (成效報告參考資料 — 結案階段)
+            mode = mode || 'visit';
+            if (!caseId) { showToast('找不到案件'); return; }
+            const raw = (casesData || []).find(c => c.id === caseId);
+            if (!raw) { showToast('找不到案件'); return; }
+            const vCase = (verifyData?.cases || []).find(c => c.id === caseId);
+            const reviews = (reviewsData || []).filter(r => r.caseId === caseId);
+            const supps = (function(){ try { return JSON.parse(localStorage.getItem(VERIFY_SUPP_KEY) || '{}'); } catch(e) { return {}; } })();
+            const supp = supps[caseId] || {};
+
+            // 類型判斷（決定套用哪個範本 a/b/c）
+            const catStr = String(raw.category || '');
+            const caseNoStr = String(raw.caseNo || '').toUpperCase();
+            const disStr = String(raw.clientDisability || '');
+            let templateLetter, templateDesc;
+            if (caseNoStr.startsWith('UH') || disStr.includes('聽') || disStr.includes('單側')) {
+                templateLetter = 'a'; templateDesc = '聽力案評估報告';
+            } else if (caseNoStr.startsWith('JA') || catStr.includes('身心障礙')) {
+                templateLetter = 'b'; templateDesc = '身障案評估報告';
+            } else {
+                templateLetter = 'c'; templateDesc = '中高案評估報告';
+            }
+
+            // 類型標籤（中高/身障）用於檔名
+            const catType = (catStr.includes('身心障礙') || catStr.includes('單側')) ? '身障' : '中高';
+            const visitYMD = formatDateYMD(raw.visitDate || raw.date) || '';
+            const seniorityText = _calcSeniority(raw.hireDate || '', visitYMD);
+
+            // 欄位值 → 顯示字串（排除不需要的欄位、日期改年月日格式、到職日轉年資）
+            const _isDateFieldKey = (k) => /date|Date/.test(k) || k === 'clientDob';
+            const EXCLUDED_KEYS = new Set(['hireDate', 'monthsInPosition']); // 到職日、月資 — 不輸出原始值
+            const _formatFieldValue = (f, v) => {
+                if (v == null || v === '') return '';
+                if (Array.isArray(v)) return v.join('、');
+                const s = String(v);
+                if (_isDateFieldKey(f.key) || f.type === 'date') {
+                    const ymd = formatDateYMD(s);
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return _toYMDChinese(ymd);
+                }
+                return s;
+            };
+
+            // -------- 段落/表格蒐集 --------
+            const paragraphs = [];
+            const heading = (text, opts = {}) => paragraphs.push(_docxP(text, { bold: true, size: opts.size || 28, ...opts }));
+            const h1 = (t) => heading(t, { size: 32, align: 'center' });
+            const h2 = (t) => heading(t, { size: 26 });
+            const h3 = (t) => heading(t, { size: 22 });
+            const pText = (t) => paragraphs.push(_docxP(t || '(未填)', { size: 22 }));
+            const bullet = (t) => paragraphs.push(_docxP('• ' + t, { size: 22 }));
+            const blank = () => paragraphs.push(_docxP(' ', { size: 22 }));
+
+            // 0) 標題
+            const docLabel = (mode === 'outcome') ? '成效報告參考資料' : '接案評估參考資料';
+            h1(`${docLabel} — ${raw.clientName || raw.company || ''}`);
+            pText(`📌 建議套用範本：${templateLetter}. ${templateDesc}`);
+            pText(`📌 編號：${raw.caseNo || '(無)'} | 對象別：${raw.category || '(無)'}${raw.clientDisability ? ' / ' + raw.clientDisability : ''}`);
+            blank();
+
+            // 1) 基本資料 — 從 FULL_CASE_FIELDS 依分組輸出所有有填值的欄位
+            h2('一、基本資料（所有已填欄位）');
+            const groupOrder = ['basic','unit','job','dates','personnel','aid-trial','aid-training','strategy','outcome','note'];
+            const groupLabel = {
+                basic:'基本資料', unit:'申請單位', job:'工作內容',
+                dates:'日期資訊', personnel:'人員', 'aid-trial':'輔具試用',
+                'aid-training':'輔具訓練', strategy:'改善策略', outcome:'成效追蹤', note:'備註'
+            };
+            const fieldsByGroup = new Map();
+            for (const f of (FULL_CASE_FIELDS || [])) {
+                if (EXCLUDED_KEYS.has(f.key)) continue;  // 🆕 月資/到職日 不輸出
+                const v = raw[f.key];
+                if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) continue;
+                const g = f.group || 'other';
+                if (!fieldsByGroup.has(g)) fieldsByGroup.set(g, []);
+                fieldsByGroup.get(g).push({ label: f.label || f.key, value: _formatFieldValue(f, v) });
+            }
+            // 🆕 把「年資」加入 job 群組（以訪視日 − 到職日計算；無資料則「無」）
+            if (!fieldsByGroup.has('job')) fieldsByGroup.set('job', []);
+            fieldsByGroup.get('job').push({ label: '年資', value: seniorityText });
+            for (const g of groupOrder) {
+                if (!fieldsByGroup.has(g)) continue;
+                h3('▸ ' + (groupLabel[g] || g));
+                const rows = fieldsByGroup.get(g).map(x => [x.label, x.value]);
+                paragraphs.push(_docxTable(['欄位', '內容'], rows, [2400, 7200]));
+                blank();
+            }
+
+            // 2) 訪視階段紀錄（作為 Claude 的輸入素材）
+            h2('二、訪視階段紀錄（依欄位整理）');
+            const visitFields = [
+                { label: '工作內容', value: raw.jobContent || raw.jobDescription || '' },
+                { label: '工作時間', value: raw.workHours || raw.workTime || '' },
+                { label: '遭遇問題', value: raw.problem || raw.problems || raw.encounteredIssues || '' },
+                { label: '障礙情形/診斷', value: raw.diagnosis || raw.disabilityCause || '' },
+                { label: '個人特質', value: raw.clientTraits || '' },
+                { label: '工作站/廠房', value: raw.workStation || raw.workSite || '' },
+                { label: '訪視備註', value: raw.visitNotes || raw.remarks || raw.note || '' },
+                { label: '結論/建議', value: raw.conclusion || raw.suggestion || '' },
+            ].filter(x => String(x.value || '').trim());
+            if (visitFields.length) {
+                paragraphs.push(_docxTable(['欄位', '內容'], visitFields.map(x => [x.label, x.value]), [2400, 7200]));
+            } else {
+                pText('（尚無訪視階段紀錄）');
+            }
+            blank();
+
+            // 3) 申請書 AI 解析結果（若存）
+            h2('三、申請書 AI 解析結果');
+            const aiFields = [
+                { label: '單位名稱（AI）', value: raw.aiCompany || '' },
+                { label: '聯絡人（AI）', value: raw.aiContactPerson || raw.contactPerson || '' },
+                { label: '聯絡電話（AI）', value: raw.aiContactPhone || raw.contactPhone || '' },
+                { label: '聯絡 Email（AI）', value: raw.aiContactEmail || raw.contactEmail || '' },
+                { label: '單位地址（AI）', value: raw.aiCompanyAddress || '' },
+                { label: '申請書 PDF', value: raw.applicationFileUrl ? '已上傳（另存雲端）' : '未上傳' },
+            ].filter(x => String(x.value || '').trim());
+            if (aiFields.length) {
+                paragraphs.push(_docxTable(['欄位', '內容'], aiFields.map(x => [x.label, x.value]), [2400, 7200]));
+            } else {
+                pText('（無 AI 解析資料）');
+            }
+            blank();
+
+            // 以下章節只在 mode='outcome' (成效報告) 時輸出 — 審查/成效/照片屬於成效報告用料
+            if (mode === 'outcome') {
+                // 4) 審查會議補助品項
+                h2('四、審查會議補助品項');
+                if (reviews.length > 0) {
+                    const reviewRows = reviews.map(r => [
+                        r.item || '',
+                        r.unit || '',
+                        String(r.price ?? ''),
+                        String(r.qty ?? ''),
+                        String(r.applyAmount ?? ''),
+                        String(r.approvedAmount ?? ''),
+                        r.category5 || r.categoryRaw || '',
+                        r.decision || ''
+                    ]);
+                    paragraphs.push(_docxTable(
+                        ['品項', '單位', '單價', '數量', '申請金額', '核定金額', '改善策略', '決議'],
+                        reviewRows,
+                        [1600, 700, 900, 700, 1100, 1100, 1600, 1000]
+                    ));
+                } else {
+                    pText('（尚無審查會議品項）');
+                }
+                blank();
+
+                // 5) 成效驗收資料（品項×補充欄位）
+                h2('五、成效驗收階段資料');
+                const vItems = (vCase?.items || []);
+                if (vCase?.verificationDate) pText('驗收日期：' + _toYMDChinese(vCase.verificationDate));
+                if (vCase?.notes) pText('整體備註：' + vCase.notes);
+                if (vItems.length > 0) {
+                    for (let i = 0; i < vItems.length; i++) {
+                        const it = vItems[i];
+                        h3(`▸ 品項 ${i + 1}：${it.name || ''}`);
+                        const supplRows = [];
+                        if (it.workStation)  supplRows.push(['工作站', it.workStation]);
+                        if (it.sharedUsers)  supplRows.push(['共用人員', it.sharedUsers]);
+                        if (it.feedback)     supplRows.push(['使用回饋', it.feedback]);
+                        if (Array.isArray(it.improvements) && it.improvements.length) {
+                            const imp = it.improvements.map(x => x.type + (x.percentage ? ` ${x.percentage}` : '')).join('、');
+                            supplRows.push(['改善效益', imp]);
+                        }
+                        if (Array.isArray(it.photos) && it.photos.length) {
+                            supplRows.push(['照片數', it.photos.length + ' 張']);
+                        }
+                        if (supplRows.length) {
+                            paragraphs.push(_docxTable(['欄位', '內容'], supplRows, [2400, 7200]));
+                        } else {
+                            pText('（此品項尚無成效補充資料）');
+                        }
+                    }
+                } else {
+                    pText('（尚無成效驗收資料）');
+                }
+                blank();
+
+                // 6) 照片清單（檔名 + 圖片內容簡寫）
+                h2('六、照片清單');
+                const photoRows = [];
+                for (let i = 0; i < vItems.length; i++) {
+                    const it = vItems[i];
+                    for (let j = 0; j < (it.photos || []).length; j++) {
+                        const photo = it.photos[j];
+                        const fn = photo.filename || '(未命名)';
+                        const caption = photo.caption || photo.description || `${it.name || '品項'+(i+1)}相關`;
+                        photoRows.push([fn, caption]);
+                    }
+                }
+                if (photoRows.length) {
+                    paragraphs.push(_docxTable(['檔名', '圖片內容簡寫'], photoRows, [4500, 5400]));
+                } else {
+                    pText('（尚無照片）');
+                }
+                blank();
+            }
+
+            // 最後一章：人員
+            const lastChapterNo = (mode === 'outcome') ? '七' : '四';
+            h2(`${lastChapterNo}、訪視/填表人員`);
+            const _coInsp = Array.isArray(raw.coInspectors) ? raw.coInspectors.filter(Boolean) : [];
+            const persons = [
+                ['訪視專員 (主)', raw.inspector || '(未填)'],
+                ['協訪專員', _coInsp.length ? _coInsp.join('、') : '(無)'],
+                ['轄區承辦', raw.owner || '(未填)'],
+                ['訪視委員', Array.isArray(raw.committees) ? raw.committees.join('、') : (raw.committees || '(未填)')],
+                ['填表人員', raw.inspector || raw.owner || PRIMARY_OWNER],
+            ];
+            paragraphs.push(_docxTable(['角色', '人員'], persons, [2400, 7200]));
+
+            // -------- 組 docx body --------
+            const sectPr = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr>';
+            const bodyXml = paragraphs.join('');
+            const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+                `<w:body>${bodyXml}${sectPr}</w:body></w:document>`;
+
+            // 檔名
+            const mgDigits = _tripMinguoDigits(visitYMD);
+            const nameTag = catType === '中高' ? (raw.company || '單位') : (raw.clientName || '姓名');
+            const docSuffix = (mode === 'outcome') ? '成效報告參考資料' : '接案評估參考資料';
+            const filename = `${raw.caseNo || ''}_${mgDigits}${nameTag}_${docSuffix}.docx`;
+
+            try {
+                const blob = await _tripPackDocx(documentXml);
+                _tripTriggerDownload(blob, filename);
+                showToast(`✅ 已產出 ${filename}`);
+            } catch (err) {
+                console.error('[接案評估參考資料匯出] 失敗', err);
+                showToast('❌ 匯出失敗：' + err.message);
+            }
+        }
+        window.exportCaseReferenceDocx = exportCaseReferenceDocx;
+
         // --- 差勤請款：訪視 / 成效 日期清單（收合、依離今日最近排序） ---
         window.renderTripDateList = function(mode) {
             if (!mode) { window.renderTripDateList('visit'); window.renderTripDateList('outcome'); return; }
@@ -12775,7 +13301,8 @@ ${rawDraft}
             { key:'workLocation',        zh:['實際工作地點','工作地點'],        group:'job',  label:'工作地點',   type:'text', listDefault:false },
 
             // --- 人員 / 審閱 ---
-            { key:'inspector',           zh:['訪視承辦','訪視人員','訪視專員','承辦'], group:'personnel', label:'訪視承辦', type:'text', listDefault:false },
+            { key:'inspector',           zh:['訪視專員','訪視人員','訪視承辦','承辦'], group:'personnel', label:'訪視專員', type:'text', listDefault:true },
+            { key:'coInspectors',        zh:['協訪專員','協訪人員','協同訪視'],   group:'personnel', label:'協訪專員',   type:'text', listDefault:false },
             { key:'owner',               zh:['接案人員','接案     人員','轄區承辦'], group:'personnel', label:'接案人員', type:'text', listDefault:true  },
             { key:'committeesRaw',       zh:['訪視委員','委員'],                group:'personnel', label:'訪視委員', type:'text', listDefault:false },
             { key:'reviewer',            zh:['報告審閱者','報告\n審閱者','審閱者'], group:'personnel', label:'審閱者',   type:'text', listDefault:false },
@@ -13029,6 +13556,12 @@ ${rawDraft}
                 setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>比對與寫入中 (0/${normalized.length})...`);
 
                 let created = 0, merged = 0, skipped = 0;
+                // 🆕 詳細記錄供匯入後 modal 顯示
+                const importLog = [];   // [{ kind: 'create'|'merge'|'skip', caseNo, name, fields: [labels...] }]
+                const _fieldLabel = (key) => {
+                    const f = (FULL_CASE_FIELDS || []).find(x => x.key === key);
+                    return f ? f.label : key;
+                };
                 const now = new Date().toISOString();
 
                 // (R2) Firestore writeBatch：每 400 筆 commit 一次，避開 500 上限，5–10× 匯入速度
@@ -13083,8 +13616,24 @@ ${rawDraft}
                             patch.importMergedAt = now;
                             batch.update(doc(db, 'users', currentUser.uid, 'cases', existing.id), patch);
                             batchOps.push({ kind: 'merge' });
+                            // 🆕 記錄補上的欄位
+                            const changedKeys = Object.keys(patch).filter(k => k !== 'updatedAt' && k !== 'importMergedAt');
+                            importLog.push({
+                                kind: 'merge',
+                                caseNo: existing.caseNo || row.caseNo || '(無編號)',
+                                name: existing.clientName || row.clientName || existing.company || row.company || '(未命名)',
+                                fields: changedKeys.map(_fieldLabel),
+                                fieldDetails: changedKeys.map(k => ({ label: _fieldLabel(k), value: Array.isArray(patch[k]) ? patch[k].join('、') : String(patch[k]) }))
+                            });
                         } else {
                             skipped++;
+                            importLog.push({
+                                kind: 'skip',
+                                caseNo: existing.caseNo || '(無編號)',
+                                name: existing.clientName || existing.company || '(未命名)',
+                                fields: [],
+                                fieldDetails: []
+                            });
                         }
                     } else {
                         // 建立新案件
@@ -13108,13 +13657,28 @@ ${rawDraft}
                         const newRef = doc(collection(db, 'users', currentUser.uid, 'cases'));
                         batch.set(newRef, newCase);
                         batchOps.push({ kind: 'create' });
+                        // 🆕 記錄新建
+                        importLog.push({
+                            kind: 'create',
+                            caseNo: row.caseNo || '(無編號)',
+                            name: row.clientName || row.company || '(未命名)',
+                            fields: [],
+                            fieldDetails: []
+                        });
                     }
 
                     if (batchOps.length >= BATCH_LIMIT) await commitBatch();
                 }
                 await commitBatch();  // 剩餘
 
-                setStatus(`✅ 匯入完成：新建 <b>${created}</b> 件，合併補空 <b>${merged}</b> 件${skipped ? `，略過 ${skipped} 件` : ''}。`, 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+                setStatus(`✅ 匯入完成：新建 <b>${created}</b> 件，合併補空 <b>${merged}</b> 件${skipped ? `，略過 ${skipped} 件` : ''}。<button onclick="window.showImportDetailModal()" class="ml-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded font-bold"><i class="fa-solid fa-list-check mr-1"></i>查看明細</button>`, 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+                // 🆕 把 log 暫存到 window，供 modal 讀
+                window._lastImportLog = importLog;
+                window._lastImportSummary = { created, merged, skipped };
+                // 自動彈出 modal（如有合併或新建）
+                if (created > 0 || merged > 0) {
+                    setTimeout(() => window.showImportDetailModal && window.showImportDetailModal(), 300);
+                }
                 // (R4) 結構化摘要 toast
                 showImportSummary('案件列表匯入', { success: created, merged, skipped });
             } catch(err) {
@@ -13979,12 +14543,24 @@ ${rawDraft}
                     <textarea id="v-notes" class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-400 resize-y" rows="3" placeholder="其他補充說明..." onchange="window.vSaveNotes(this.value)">${c.notes || ''}</textarea>
                 </div>
 
+                <!-- 🆕 雲端儲存（補充欄位 → Firestore，跨裝置同步） -->
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
+                    <h3 class="font-bold text-amber-800 text-sm mb-2"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>雲端儲存</h3>
+                    <p class="text-xs text-slate-600 mb-3">本頁面填的工作站、共用人員、改善效益、回饋、整體備註等補充資料，平時自動存於本機。<b>按下方按鈕</b>會把它推上 Firestore，讓你在其他裝置（換手機、重新登入）也看得到。</p>
+                    <button onclick="window.vSaveCaseToCloud('${caseId}')"
+                            class="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-xl text-base font-black shadow-md active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>儲存到雲端（跨裝置同步）
+                    </button>
+                </div>
+
                 <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                     <h3 class="font-bold text-slate-700 text-sm mb-3"><i class="fa-solid fa-download text-slate-400 mr-1.5"></i>匯出與下載</h3>
                     <div class="flex flex-wrap gap-2">
                         <button onclick="window.vExportCaseExcel('${caseId}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-1.5"><i class="fa-solid fa-file-excel"></i> 下載 Excel</button>
                         <button onclick="window.vDownloadPhotos('${caseId}')" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-1.5"><i class="fa-solid fa-images"></i> 批次下載照片</button>
+                        <button onclick="window.exportCaseReferenceDocx('${caseId}', 'outcome')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-1.5" title="下載供 Claude 撰寫成效報告用的參考資料 Word"><i class="fa-solid fa-file-word"></i> 下載成效報告參考資料</button>
                     </div>
+                    <p class="text-xs text-slate-500 mt-2">💡 成效報告參考資料包含基本資料 + 訪視紀錄 + 審查品項 + 成效資料 + 照片清單，貼給 Claude 綜合撰寫成效報告用。</p>
                 </div>
             `;
         };
@@ -14275,20 +14851,30 @@ ${rawDraft}
             reader.readAsArrayBuffer(file);
         });
 
-        // ---- 批次下載照片 ----
+        // ---- 批次下載照片（檔名規則：{日期}_{姓名}({障別})_{類型}{階段}_{序號}.jpg）----
         window.vDownloadPhotos = async function(caseId) {
             const c = verifyData.cases.find(x => x.id === caseId);
             if (!c) return;
+            const raw = (casesData || []).find(x => x.id === caseId) || {};
+            // 類型：身障/中高（依 category 推斷）
+            const catType = c.category === '身障' ? '身障' : '中高';
+            // 障別：身障個案從 clientDisability 取；中高通常無
+            const disability = String(raw.clientDisability || '').trim();
+            const clientName = c.clientName || raw.clientName || '姓名';
+            const phaseDate = c.verificationDate || formatDateYMD(raw.visitDate || raw.date) || '';
+            const phaseLabel = c.verificationDate ? '成效' : '訪視';
+            const discTag = disability ? `(${disability})` : '';
             let count = 0;
             for (let idx = 0; idx < c.items.length; idx++) {
                 for (const photo of (c.items[idx].photos || [])) {
                     const src = vGetPhotoData(photo.id) || photo.url;
                     if (!src) continue;
+                    count++;
+                    const datePart = phaseDate || new Date().toISOString().slice(0, 10);
                     const a = document.createElement('a');
                     a.href = src;
-                    a.download = photo.filename || `${c.unit}_${c.clientName}_${c.verificationDate||'unknown'}_成效驗收_${idx+1}_${count+1}.jpg`;
+                    a.download = `${datePart}_${clientName}${discTag}_${catType}${phaseLabel}_${count}.jpg`;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                    count++;
                     await new Promise(r => setTimeout(r, 200));
                 }
             }
@@ -14343,6 +14929,14 @@ ${rawDraft}
             const btn = document.getElementById('v-btn-close-case');
             if (btn) { btn.innerHTML = '<i class="fa-solid fa-lock mr-1"></i> 已結案'; btn.className = 'bg-slate-500 text-white px-3 py-1.5 rounded-xl font-bold text-sm cursor-default'; btn.onclick = null; }
             showToast('已結案');
+            // 🆕 結案後提示下載成效報告參考資料
+            setTimeout(() => {
+                if (confirm('案件已結案。\n要立即下載「成效報告參考資料 (.docx)」給 Claude 撰寫成效報告用嗎？')) {
+                    if (typeof window.exportCaseReferenceDocx === 'function') {
+                        window.exportCaseReferenceDocx(currentVerifyCaseId, 'outcome');
+                    }
+                }
+            }, 300);
         };
 
         // ---- 初始化 verify 資料 ----
@@ -15517,7 +16111,9 @@ ${rawDraft}
                 if (isUnitCat(c)) continue; // 中高另外處理
                 const reviews = (reviewsData || []).filter(r => r.caseId === c.id);
                 const status = _STAGE_TO_VSTATUS[c.stage] || 'pending';
-                const supp = supps[c.id] || {};
+                // 🆕 雲端 verifySupplement 優先（跨裝置同步）；其次才用 localStorage
+                const cloudSupp = (c.verifySupplement && typeof c.verifySupplement === 'object') ? c.verifySupplement : null;
+                const supp = cloudSupp || supps[c.id] || {};
                 const suppItems = supp.items || [];
                 // 🆕 訪視評估表優先取儀表板上傳的 evalReportFileUrl（與儀表板串接）
                 const evalUrl = c.evalReportFileUrl || c.unitEvalReportFileUrl || '';
@@ -15635,7 +16231,9 @@ ${rawDraft}
                 for (const m of g.members) {
                     // 🆕 預設全員 pending（不再因 stage/items 空而排除，確保單位人員都出現）
                     const mStatus = _STAGE_TO_VSTATUS[m.stage] || 'pending';
-                    const supp = supps[m.id] || {};
+                    // 🆕 雲端 verifySupplement 優先；其次才用 localStorage
+                    const mCloudSupp = (m.verifySupplement && typeof m.verifySupplement === 'object') ? m.verifySupplement : null;
+                    const supp = mCloudSupp || supps[m.id] || {};
                     // 🆕 訪視評估表：優先成員自己的 evalReportFileUrl，再退回單位層級的 unitEvalReportFileUrl
                     const mEvalUrl = m.evalReportFileUrl || unitEvalUrl || '';
                     const docFileFromEval = mEvalUrl ? {
@@ -15719,6 +16317,129 @@ ${rawDraft}
                     if (c.verificationDate && cached && cached.verificationDate !== c.verificationDate) patch.verificationDate = c.verificationDate;
                     if (Object.keys(patch).length > 0) _writeVerifyBackToCase(tid, patch);
                 }
+            }
+        };
+
+        // 🆕 顯示 Excel 匯入明細 modal
+        window.showImportDetailModal = function() {
+            const modal = document.getElementById('import-detail-modal');
+            const summaryEl = document.getElementById('import-detail-summary');
+            const bodyEl = document.getElementById('import-detail-body');
+            if (!modal || !summaryEl || !bodyEl) return;
+            const log = window._lastImportLog || [];
+            const sum = window._lastImportSummary || { created: 0, merged: 0, skipped: 0 };
+            const escH = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            summaryEl.innerHTML = `📊 新建 <span class="text-blue-700">${sum.created}</span> 件 · 合併補空 <span class="text-emerald-700">${sum.merged}</span> 件${sum.skipped ? ` · 略過 <span class="text-slate-500">${sum.skipped}</span> 件（已有同案件且無新資料）` : ''}`;
+            const creates = log.filter(x => x.kind === 'create');
+            const merges  = log.filter(x => x.kind === 'merge');
+            const skips   = log.filter(x => x.kind === 'skip');
+            let html = '';
+            // 新建
+            if (creates.length) {
+                html += `<details open class="bg-blue-50 border border-blue-200 rounded-xl">
+                    <summary class="cursor-pointer p-3 font-bold text-blue-800 select-none">
+                        <i class="fa-solid fa-plus-circle mr-1"></i>新建案件 (${creates.length} 件)
+                    </summary>
+                    <div class="p-3 pt-0 space-y-1 max-h-60 overflow-y-auto">${
+                        creates.map(x => `<div class="bg-white rounded p-2 text-sm border border-blue-100">
+                            <span class="font-bold text-slate-800">${escH(x.name)}</span>
+                            <span class="text-xs text-slate-500 ml-2">${escH(x.caseNo)}</span>
+                        </div>`).join('')
+                    }</div>
+                </details>`;
+            }
+            // 合併補空
+            if (merges.length) {
+                html += `<details open class="bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <summary class="cursor-pointer p-3 font-bold text-emerald-800 select-none">
+                        <i class="fa-solid fa-object-group mr-1"></i>合併補空 (${merges.length} 件) — 點開看每筆補了什麼欄位
+                    </summary>
+                    <div class="p-3 pt-0 space-y-2 max-h-96 overflow-y-auto">${
+                        merges.map(x => `<div class="bg-white rounded-lg p-3 border border-emerald-100">
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <span class="font-bold text-slate-800 text-sm">${escH(x.name)}</span>
+                                <span class="text-xs text-slate-500">${escH(x.caseNo)}</span>
+                                <span class="ml-auto text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">補 ${x.fields.length} 欄</span>
+                            </div>
+                            <div class="text-xs text-slate-600">
+                                ${x.fieldDetails.map(fd => `<div class="flex gap-2 py-0.5"><span class="font-bold text-slate-700 shrink-0 w-24">${escH(fd.label)}</span><span class="text-emerald-700 break-all">${escH(fd.value).slice(0, 80)}${fd.value.length > 80 ? '...' : ''}</span></div>`).join('')}
+                            </div>
+                        </div>`).join('')
+                    }</div>
+                </details>`;
+            }
+            // 略過
+            if (skips.length) {
+                html += `<details class="bg-slate-50 border border-slate-200 rounded-xl">
+                    <summary class="cursor-pointer p-3 font-bold text-slate-700 select-none">
+                        <i class="fa-solid fa-circle-minus mr-1"></i>略過 (${skips.length} 件) — 已有同案件且 Excel 無新資料可補
+                    </summary>
+                    <div class="p-3 pt-0 space-y-1 max-h-60 overflow-y-auto">${
+                        skips.map(x => `<div class="bg-white rounded p-2 text-sm border border-slate-200">
+                            <span class="font-bold text-slate-800">${escH(x.name)}</span>
+                            <span class="text-xs text-slate-500 ml-2">${escH(x.caseNo)}</span>
+                        </div>`).join('')
+                    }</div>
+                </details>`;
+            }
+            if (!html) html = '<p class="text-center text-slate-400 py-6">沒有明細</p>';
+            bodyEl.innerHTML = html;
+            modal.classList.remove('hidden');
+        };
+        window.closeImportDetailModal = function() {
+            const modal = document.getElementById('import-detail-modal');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        // 🆕 把指定 case 的補充資料推上 Firestore（cases/{id}.verifySupplement），跨裝置同步
+        // 中高單位 case 會把同樣的 supplement 寫到該單位所有成員上
+        window.vSaveCaseToCloud = async function(caseId) {
+            if (!currentUser) { showToast('請先登入'); return; }
+            const c = (verifyData?.cases || []).find(x => x.id === caseId);
+            if (!c) { showToast('找不到案件'); return; }
+            const suppData = {
+                notes: c.notes || '',
+                address: c.address || '',
+                docFile: c.docFile || null,
+                verificationDate: c.verificationDate || '',
+                items: (c.items || []).map(it => ({
+                    workStation: it.workStation || '',
+                    sharedUsers: it.sharedUsers || '',
+                    feedback: it.feedback || '',
+                    improvements: it.improvements || [],
+                    photos: (it.photos || []).map(p => ({ id: p.id || '', filename: p.filename || '', url: p.url || '' })),
+                })),
+                updatedAt: new Date().toISOString(),
+            };
+            const targetIds = Array.isArray(c._unitMemberIds) && c._unitMemberIds.length
+                ? c._unitMemberIds
+                : [c.id];
+            const btn = event?.target?.closest?.('button');
+            const orig = btn ? btn.innerHTML : '';
+            if (btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>上傳中...'; btn.classList.add('opacity-60','pointer-events-none'); }
+            try {
+                let batch = writeBatch(db);
+                let cnt = 0;
+                for (const tid of targetIds) {
+                    batch.update(doc(db, 'users', currentUser.uid, 'cases', tid), {
+                        verifySupplement: suppData,
+                        updatedAt: serverTimestamp(),
+                    });
+                    cnt++;
+                    if (cnt % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
+                }
+                await batch.commit();
+                // 同步更新 local casesData，避免下次 vSyncFromCases 拿到舊值
+                for (const tid of targetIds) {
+                    const cached = (casesData || []).find(x => x.id === tid);
+                    if (cached) cached.verifySupplement = suppData;
+                }
+                showToast(`✅ 已儲存到雲端（${targetIds.length} 筆案件同步）`);
+            } catch(err) {
+                console.error('[vSaveCaseToCloud] 失敗', err);
+                alert('儲存失敗：' + (err?.message || err));
+            } finally {
+                if (btn) { btn.innerHTML = orig; btn.classList.remove('opacity-60','pointer-events-none'); }
             }
         };
 
