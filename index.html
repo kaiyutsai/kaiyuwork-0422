@@ -2803,8 +2803,12 @@
         //   1. 必須有 clientName（未命名案件一律不算）
         //   2. 必須有 owner (接案人員) 並且要在 PRIMARY_OWNER_ALIASES 裡
         // 中高齡工作站佔位名「（工作站案件）」也算命名，不排除
-        // 🆕 主責判斷改為「訪視專員 inspector」或「協訪專員 coInspectors」其中一位是凱宇/蔡凱宇
-        // 後相容：若 inspector / coInspectors 皆未設且舊欄位 owner 是凱宇，仍視為主責
+        // 🆕 主責判斷（2026-04-27 放寬）：訪視專員 / 協訪專員 / 轄區承辦 任一是凱宇/蔡凱宇即視為主責
+        //   1. inspector（訪視專員）∈ PRIMARY_OWNER_ALIASES
+        //   2. 或 coInspectors（協訪專員陣列）含 PRIMARY_OWNER_ALIASES
+        //   3. 或 owner（轄區承辦）∈ PRIMARY_OWNER_ALIASES
+        // 三者擇一即可（不再要求 inspector/coInspectors 必須空白才看 owner）
+        // 動機：0425 起 inspector 欄被填成同事姓名後，舊資料即便 owner=凱宇 也會被誤排除
         const isPrimaryCase = (c) => {
             if (!c) return false;
             const name = String(c.clientName || '').trim();
@@ -2814,11 +2818,8 @@
             if (inspector && aliases.includes(inspector)) return true;
             const co = Array.isArray(c.coInspectors) ? c.coInspectors : [];
             if (co.some(x => aliases.includes(String(x || '').trim()))) return true;
-            // 後相容：舊資料未設 inspector / coInspectors，但 owner 是凱宇/蔡凱宇
-            if (!inspector && co.length === 0) {
-                const owner = String(c.owner || '').trim();
-                if (owner && aliases.includes(owner)) return true;
-            }
+            const owner = String(c.owner || '').trim();
+            if (owner && aliases.includes(owner)) return true;
             return false;
         };
         const normalizeText = (s) => String(s || '').trim().toLowerCase();
