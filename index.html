@@ -1317,6 +1317,12 @@
                                 <button onclick="window.routeOpenInGmaps()" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95">
                                     <i class="fa-brands fa-google mr-1"></i>在 Google Maps 開啟
                                 </button>
+                                <button onclick="window.routeOpenSaveDialog()" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95" title="把目前路線存到雲端">
+                                    <i class="fa-solid fa-floppy-disk mr-1"></i>存路線
+                                </button>
+                                <button onclick="window.routeOpenLoadDialog()" class="bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95" title="從雲端載入已存路線（跨電腦）">
+                                    <i class="fa-solid fa-folder-open mr-1"></i>我的路線
+                                </button>
                             </div>
                             <p id="route-status" class="text-xs text-slate-500"></p>
                         </div>
@@ -1332,6 +1338,18 @@
                                 <button onclick="window.routeAddCustomPoint()" class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95 shrink-0">
                                     <i class="fa-solid fa-plus mr-1"></i>加入自訂
                                 </button>
+                            </div>
+                            <!-- 批次套用成效驗收日 -->
+                            <div class="flex flex-wrap gap-2 items-center mb-2 p-2 rounded-lg bg-purple-50 border border-purple-100">
+                                <span class="text-xs font-bold text-purple-700"><i class="fa-solid fa-calendar-check mr-1"></i>批次設驗收日</span>
+                                <input type="date" id="route-batch-date" class="text-xs border border-slate-300 rounded px-2 py-1 bg-white" title="先勾選 row，再選日期套用">
+                                <button onclick="window.routeBatchApplyDate()" class="text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded shadow active:scale-95">
+                                    套到勾選的 row
+                                </button>
+                                <button onclick="window.routeBatchClearDate()" class="text-xs text-rose-600 hover:text-rose-800 underline" title="把勾選的 row 驗收日清空（個案會回未驗收）">
+                                    清空驗收日
+                                </button>
+                                <span class="text-[11px] text-slate-500 ml-auto">每個 row 也可單獨改 📅</span>
                             </div>
                             <div id="route-waypoint-list" class="space-y-2 min-h-[80px]">
                                 <p class="text-xs text-slate-400 text-center py-4">點「載入訪視點」按鈕開始</p>
@@ -3258,6 +3276,26 @@
             return s; // 實在解不開就回原樣
         }
 
+        // 偵測 value 像不像「日期型態（Date 物件 / Date.toString() 長字串）」→ 自動 YMD 化；非日期原樣回傳
+        // 用在 row()/addIf() 等通用 helper 中，避免 c.visitDate 之類 Date 物件直接 toString 變「Tue May 05 2026 ... GMT+0800 (台北標準時間)」
+        function _autoFmtDate(v) {
+            if (v == null || v === '') return v;
+            if (v instanceof Date) {
+                const f = formatDateYMD(v);
+                return f || v;
+            }
+            const s = String(v);
+            // Date.prototype.toString() 模式：Tue May 05 2026 00:00:00 GMT+0800 (台北標準時間)
+            if (/^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2} \d{4}/.test(s)) {
+                return formatDateYMD(s) || s;
+            }
+            // ISO 帶時區：2026-05-05T00:00:00.000Z 之類 → 縮成 YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) {
+                return s.slice(0, 10);
+            }
+            return v;
+        }
+
         // Excel 序列日期數字 → YYYY-MM-DD（1900 系統；遇到 <5000 視為民國年字串交回原樣）
         function excelSerialToISO(n) {
             if (n == null || n === '') return '';
@@ -3340,9 +3378,9 @@
                                 <div class="text-sm text-slate-600 font-bold mt-1 truncate">
                                     <i class="fa-solid fa-user mr-1"></i>${it.clientName}
                                     <span class="mx-2 text-slate-300">|</span>
-                                    <i class="fa-solid fa-calendar mr-1"></i>初訪 ${it.visitDate}
+                                    <i class="fa-solid fa-calendar mr-1"></i>初訪 ${formatDateYMD(it.visitDate) || it.visitDate}
                                     <span class="mx-2 text-slate-300">|</span>
-                                    期限 ${it.dueDate}
+                                    期限 ${formatDateYMD(it.dueDate) || it.dueDate}
                                 </div>
                             </div>
                             <div class="shrink-0 flex items-center gap-3">
@@ -4678,7 +4716,7 @@
                             <span class="shrink-0">${categories || '—'} · ${people.length} 人</span>
                             ${unitInfo.owner ? `<span class="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded font-black whitespace-nowrap">訪視：${unitInfo.owner}</span>` : ''}
                             ${unitInfo.inspector ? `<span class="text-[10px] bg-slate-50 text-slate-600 border border-slate-200 px-2 py-0.5 rounded font-black whitespace-nowrap">承辦：${unitInfo.inspector}${unitInfo.district ? `（${unitInfo.district}）` : ''}</span>` : ''}
-                            ${unitInfo.visitDate ? `<span class="shrink-0"><i class="fa-solid fa-calendar text-slate-400 mr-1"></i>${unitInfo.visitDate}</span>` : ''}
+                            ${unitInfo.visitDate ? `<span class="shrink-0"><i class="fa-solid fa-calendar text-slate-400 mr-1"></i>${formatDateYMD(unitInfo.visitDate) || unitInfo.visitDate}</span>` : ''}
                         </div>
                     </div>
                     <div class="cl-unit-body bg-white p-3 grid grid-cols-1 md:grid-cols-2 gap-2 ${expanded ? '' : 'hidden'}">
@@ -5764,7 +5802,7 @@
                 const displayTitle = c.clientTitle ? '('+c.clientTitle+')' : (c.jobTitle ? '('+c.jobTitle+')' : '');
                 const genderAge = (c.clientGender || c.clientAge) ? ` | ${c.clientGender || ''} ${c.clientAge ? c.clientAge+'歲' : ''}` : '';
                 document.getElementById('ws-client').textContent = `${displayName} ${displayTitle}${genderAge}`;
-                document.getElementById('ws-visit-date').textContent = `初訪日: ${c.visitDate || c.date || '-'}`;
+                document.getElementById('ws-visit-date').textContent = `初訪日: ${formatDateYMD(c.visitDate || c.date) || '-'}`;
                 
                 const districtText = c.district ? `｜轄區：${c.district}` : '';
                 document.getElementById('ws-details-location').innerHTML = `<i class="fa-solid fa-location-dot mr-1"></i> ${c.workLocation || c.company || '未填寫'} ${districtText}`;
@@ -6022,7 +6060,7 @@
             document.getElementById('dis-condition').textContent = c.clientCondition || '-';
             document.getElementById('dis-problems').textContent = c.initialProblems || '-';
             document.getElementById('dis-contact').textContent = [c.clientMobile, c.clientEmail].filter(Boolean).join('  /  ') || '-';
-            document.getElementById('dis-dates').textContent = `接案：${c.intakeDate||'-'}  初訪：${c.visitDate||c.date||'-'}`;
+            document.getElementById('dis-dates').textContent = `接案：${formatDateYMD(c.intakeDate)||'-'}  初訪：${formatDateYMD(c.visitDate||c.date)||'-'}`;
             document.getElementById('dis-app-title').textContent = `${c.clientName||'個案'}｜${c.company||''}`;
 
             // 生成開場白
@@ -6654,7 +6692,7 @@
                 const data = collectDisData();
                 const lines = [];
                 const sec = (t) => { lines.push(''); lines.push(`【${t}】`); };
-                const row = (label, val) => { const v=(val||'').toString().trim(); if(v) lines.push(`${label}：${v}`); };
+                const row = (label, val) => { const v=(_autoFmtDate(val)||'').toString().trim(); if(v) lines.push(`${label}：${v}`); };
 
                 lines.push('【身心障礙者職務再設計訪視紀錄】');
                 lines.push('─'.repeat(40));
@@ -6959,7 +6997,7 @@
             if (!c) return;
 
             document.getElementById('elder-ws-company').textContent = c.company || '未命名企業';
-            document.getElementById('elder-ws-meta').textContent = `初訪日：${c.visitDate || '-'}　主責：${c.owner || ''}`;
+            document.getElementById('elder-ws-meta').textContent = `初訪日：${formatDateYMD(c.visitDate) || '-'}　主責：${c.owner || ''}`;
             // 申請書迴紋針
             updateAppFileBtn('elder', caseId, c.applicationFileUrl || '');
             const elderAddressEl = document.getElementById('elder-company-address');
@@ -7463,7 +7501,7 @@
                 lines.push(`【${title}】`);
             };
             const addIf = (label, value) => {
-                const v = (value ?? '').toString().trim();
+                const v = (_autoFmtDate(value) ?? '').toString().trim();
                 if (!v) return;
                 lines.push(`${label}：${v}`);
             };
@@ -7575,7 +7613,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `中高齡訪視紀錄_${c.company || '未命名'}_${c.visitDate || ''}.txt`;
+            a.download = `中高齡訪視紀錄_${c.company || '未命名'}_${formatDateYMD(c.visitDate) || ''}.txt`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
             showToast('文字檔已下載');
@@ -7946,8 +7984,8 @@
                 { 項目: "申請單位", 內容: c.company || "" },
                 { 項目: "個案姓名", 內容: c.clientName || "" },
                 { 項目: "障礙類別/狀況", 內容: c.disability ? `${c.disability} (${c.disabilityCause||''})` : "無" },
-                { 項目: "接案日期", 內容: c.intakeDate || "" },
-                { 項目: "初訪日期", 內容: c.visitDate || c.date || "" },
+                { 項目: "接案日期", 內容: formatDateYMD(c.intakeDate) || "" },
+                { 項目: "初訪日期", 內容: formatDateYMD(c.visitDate || c.date) || "" },
                 { 項目: "", 內容: "" },
                 { 項目: "📝 評估撰寫", 內容: "" },
                 { 項目: "一、個案之就業狀況", 內容: d_status || rpt.status || "" },
@@ -8054,7 +8092,7 @@
                 lines.push(`【${title}】`);
             };
             const addIf = (label, value) => {
-                const v = (value ?? '').toString().trim();
+                const v = (_autoFmtDate(value) ?? '').toString().trim();
                 if (!v) return;
                 lines.push(`${label}：${v}`);
             };
@@ -8779,7 +8817,7 @@
                         <i class="fa-solid ${icon} text-2xl"></i>
                         <div class="truncate">
                             <p class="text-sm font-bold text-slate-700 truncate">${f.name}</p>
-                            <p class="text-xs text-slate-400">${f.date || ''}</p>
+                            <p class="text-xs text-slate-400">${formatDateYMD(f.date) || ''}</p>
                         </div>
                     </div>
                     <!-- 🗑️ 刪除按鈕與下載 -->
@@ -9434,7 +9472,7 @@ ${rawDraft}
                     </tr>
                     <tr>
                         <td style="border: 1px solid black; padding: 6px; font-weight: bold; background-color: #f1f5f9;">初訪日期</td>
-                        <td colspan="3" style="border: 1px solid black; padding: 6px;">${c.visitDate || c.date || ''}</td>
+                        <td colspan="3" style="border: 1px solid black; padding: 6px;">${formatDateYMD(c.visitDate || c.date) || ''}</td>
                     </tr>
                     <tr>
                         <td rowspan="2" style="border: 1px solid black; padding: 6px; font-weight: bold; background-color: #f1f5f9;">個案資料</td>
@@ -10521,7 +10559,7 @@ ${rawDraft}
             });
 
             const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-            elderDownloadBlob(blob, `工作站紀錄_${sanitizeFileName(c.company || '未命名單位')}_${c.visitDate || ''}.txt`);
+            elderDownloadBlob(blob, `工作站紀錄_${sanitizeFileName(c.company || '未命名單位')}_${formatDateYMD(c.visitDate) || ''}.txt`);
             showToast('已下載紀錄檔');
         }, true);
 
@@ -11782,7 +11820,7 @@ ${rawDraft}
                 return `<div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-4 hover:bg-slate-100 transition-colors">
                     <div>
                         <p class="font-bold text-slate-800">${m.region} · 第 ${m.session} 場</p>
-                        <p class="text-sm text-slate-500"><i class="fa-regular fa-calendar mr-1"></i>${m.date || '-'}</p>
+                        <p class="text-sm text-slate-500"><i class="fa-regular fa-calendar mr-1"></i>${formatDateYMD(m.date) || '-'}</p>
                     </div>
                     <div class="text-right">
                         <p class="text-sm text-slate-500">品項 <b class="text-slate-700">${count}</b></p>
@@ -12678,7 +12716,7 @@ ${rawDraft}
                 if (s.reflection) extras.push(`<span class="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1 rounded">📝</span>`);
                 const extrasHtml = extras.length ? `<span class="ml-1">${extras.join(' ')}</span>` : '';
                 return `<tr class="border-b border-slate-100 hover:bg-slate-50">
-                    <td class="p-2 text-xs whitespace-nowrap">${s.date || '-'}</td>
+                    <td class="p-2 text-xs whitespace-nowrap">${formatDateYMD(s.date) || '-'}</td>
                     <td class="p-2"><span class="text-xs px-2 py-1 rounded ${badge} font-bold">${s.type}</span></td>
                     <td class="p-2 text-xs">${s.region || ''}</td>
                     <td class="p-2 text-xs">${s.caseName || ''}</td>
@@ -16563,6 +16601,7 @@ ${rawDraft}
         let _routeDest = null;
         let _routeMode = 'car';   // 'car' | 'motorcycle'
         let _routeCurrentDate = ''; // 指定日期 mode 時記住該日（用來跟 scheduleData 同步 visitTime）
+        let _routeMarkerInfoWin = null;  // marker 點擊時用的 InfoWindow 共用實例
 
         // 動態載入 Google Maps JS API（避免不需要時也載）
         function loadGoogleMapsScript() {
@@ -16711,14 +16750,24 @@ ${rawDraft}
             }
 
             // 中高勞通同單位合併（一個地址只取一筆，但 peopleCount 累加）
-            const seen = new Map(); // addr → entry
+            // 地址正規化：全形空白→半形、連續空白合併、trim、首尾標點 → 寬鬆比對
+            const normAddr = (s) => String(s || '')
+                .replace(/[　\s]+/g, '')      // 全形/半形空白全砍
+                .replace(/[，、,。.;；]/g, '')   // 標點全砍
+                .toLowerCase()
+                .trim();
+            const seen = new Map(); // normAddr → entry
             const schedEntries = (_routeCurrentDate && scheduleData[_routeCurrentDate]?.entries) || {};
             cases.forEach(c => {
                 const addr = (c.address || '').trim();
                 if (!addr) return;
-                if (seen.has(addr)) {
-                    // 同地址：累加人數（中高勞通同單位多人會走到這）
-                    seen.get(addr).peopleCount = (seen.get(addr).peopleCount || 1) + 1;
+                const nk = normAddr(addr);
+                if (seen.has(nk)) {
+                    // 同地址：累加人數（中高勞通同單位多人 / 身障夫妻檔同址都走到這）
+                    const entry = seen.get(nk);
+                    entry.peopleCount = (entry.peopleCount || 1) + 1;
+                    const nm = (c.clientName || c.unit || '').trim();
+                    if (nm && !entry.names.includes(nm)) entry.names.push(nm);
                     return;
                 }
                 const name = c.category === '中高勞通'
@@ -16738,7 +16787,7 @@ ${rawDraft}
                 const fromVerify = !c._isVisit;
                 // 訪視日期：成效驗收 case 用 verificationDate；訪視 case 用 verificationDate（=當日）
                 const visitDate = c.verificationDate || c.visitDate || c.date || '';
-                seen.set(addr, {
+                seen.set(nk, {
                     key: c.id,
                     name,
                     addr,
@@ -16749,7 +16798,9 @@ ${rawDraft}
                     fromVerify,
                     category: c.category || '',          // 🆕 給 marker 顏色用
                     visitDate,                            // 🆕 顯示在 row
-                    peopleCount: 1,                       // 🆕 同地址累加（中高勞通用）
+                    verificationDate: c.verificationDate || '', // 🆕 row 內可改、寫回個案
+                    peopleCount: 1,                       // 🆕 同地址累加
+                    names: [(c.clientName || c.unit || '').trim()].filter(Boolean), // 🆕 收集姓名給 tooltip
                 });
             });
             _routeWaypoints = [...seen.values()];
@@ -16819,10 +16870,18 @@ ${rawDraft}
                     : w.category === '訪視'
                     ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-800 shrink-0">訪視</span>'
                     : w.isCustom
-                    ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 shrink-0">自訂</span>'
+                    ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 shrink-0 ring-1 ring-rose-300">📍自訂</span>'
                     : '';
-                const peopleChip = w.peopleCount > 1 ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">${w.peopleCount}人</span>` : '';
+                const peopleTitle = (w.names && w.names.length > 1) ? `同址 ${w.peopleCount} 人：${w.names.join('、')}` : '';
+                const peopleChip = w.peopleCount > 1 ? `<span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-500 text-white shrink-0 ring-1 ring-orange-700 shadow-sm" title="${peopleTitle.replace(/"/g,'&quot;')}">👥 ${w.peopleCount}人</span>` : '';
                 const dateChip = w.visitDate ? `<span class="text-[10px] text-slate-500 shrink-0">📅 ${w.visitDate}</span>` : '';
+                // 行內可改的成效驗收日（個案會即時寫回；自訂點只記在路線上）
+                const verDateTitle = w.isCustom ? '自訂點：日期僅存於路線（個案無對應）' : '設定/修改成效驗收日 → 即時寫回個案';
+                const verDateInput = `<input type="date" value="${w.verificationDate || ''}" onchange="window.routeSetWpDate(${idx}, this.value)" onclick="event.stopPropagation()" class="text-xs border ${w.verificationDate ? 'border-emerald-400 bg-emerald-50' : 'border-purple-200 bg-white'} rounded px-1.5 py-0.5 shrink-0" style="width:8.2rem" title="${verDateTitle}">`;
+                // 在「指定日期 mode」下，若驗收日跟當前日期不符，顯示警示 chip（依凱宇要求：未結案的不要消失，仍顯示）
+                const offDayChip = (_routeCurrentDate && w.verificationDate && w.verificationDate !== _routeCurrentDate)
+                    ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0 ring-1 ring-amber-300" title="此 row 的驗收日已改成別天，重新載入會被過濾掉">⚠ 非當日 (${w.verificationDate})</span>`
+                    : '';
                 return `
                 <div class="route-wp flex items-center gap-2 p-2 rounded-lg border ${w.latLng ? 'border-slate-200 bg-slate-50' : 'border-rose-200 bg-rose-50'}" draggable="true" data-idx="${idx}">
                     <i class="fa-solid fa-grip-vertical text-slate-300 cursor-grab"></i>
@@ -16832,9 +16891,10 @@ ${rawDraft}
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-1.5 flex-wrap">
                             <span class="text-sm font-medium text-slate-700 truncate">${w.name || '(無名稱)'}</span>
-                            ${catChip}${peopleChip}${dateChip}
+                            ${catChip}${peopleChip}${dateChip}${offDayChip}
                         </div>
                         <div class="text-xs text-slate-500 truncate">${w.addr}${w.latLng ? '' : ' <span class="text-rose-500">⚠ 查不到座標</span>'}</div>
+                        ${verDateInput ? `<div class="mt-1">${verDateInput}</div>` : ''}
                     </div>
                     <div class="flex items-center gap-0.5">
                         ${apptIcons}
@@ -16942,6 +17002,125 @@ ${rawDraft}
             renderRouteOnMap();
         };
 
+        // 行內改成效驗收日 → 寫回個案（中高勞通整單位、其他單筆）；自訂點只記在路線上
+        const _routeNormAddr = (s) => String(s||'').replace(/[　\s]+/g,'').replace(/[，、,。.;；]/g,'').toLowerCase().trim();
+        window.routeSetWpDate = function(idx, val) {
+            const w = _routeWaypoints[idx];
+            if (!w) return;
+            // 自訂點：只更新 waypoint，沒對應個案
+            if (w.isCustom) {
+                w.verificationDate = val;
+                renderRouteWaypointList();
+                renderRouteOnMap();
+                showToast(val ? `📍 自訂點日期：${val}` : '📍 已清除自訂點日期');
+                return;
+            }
+            const wn = _routeNormAddr(w.addr);
+            const targets = (verifyData.cases || []).filter(c => _routeNormAddr(c.address) === wn);
+            if (targets.length === 0) {
+                // 訪視 case（_isVisit）目前資料模型沒對應 verify entry，無法寫回；改成只更新 waypoint
+                w.verificationDate = val;
+                renderRouteWaypointList();
+                renderRouteOnMap();
+                showToast('⚠ 找不到對應成效個案，僅更新路線顯示（沒寫回）');
+                return;
+            }
+            targets.forEach(c => {
+                c.verificationDate = val;
+                if (val && c.status === 'pending') c.status = 'inProgress';
+            });
+            saveVerifyData();
+            if (typeof _scheduleAutoCloudSync === 'function') targets.forEach(c => _scheduleAutoCloudSync(c.id));
+            if (typeof vRenderDashboard === 'function') vRenderDashboard();
+            if (typeof vRenderCaseList === 'function') vRenderCaseList();
+            w.verificationDate = val;
+            renderRouteWaypointList();
+            renderRouteOnMap();
+            showToast(`✅ ${val || '清空'} 已套到 ${targets.length} 筆個案`);
+        };
+
+        // 點 marker 開 InfoWindow：date input + 簡介，改完直接走 routeSetWpDate
+        function _routeOpenMarkerEditor(marker, s) {
+            if (!window.google) return;
+            const w = _routeWaypoints[s.wpIdx];
+            if (!w) return;
+            if (!_routeMarkerInfoWin) _routeMarkerInfoWin = new google.maps.InfoWindow();
+            const safeName = (w.name || w.addr).replace(/</g,'&lt;');
+            const peopleStr = (w.peopleCount > 1 && w.names?.length) ? `<div class="text-[11px] text-orange-700 mt-0.5">👥 同址 ${w.peopleCount} 人：${w.names.join('、')}</div>` : '';
+            const visitStr = (w.visitDate && w.visitDate !== w.verificationDate) ? `<div class="text-[11px] text-slate-500">🗓 訪視日 ${w.visitDate}</div>` : '';
+            const html = `
+                <div style="min-width:220px;font-family:inherit;">
+                    <div class="font-bold text-slate-800 text-sm mb-0.5">${s.labelText}. ${safeName}</div>
+                    <div class="text-[11px] text-slate-500">${(w.addr||'').replace(/</g,'&lt;')}</div>
+                    ${peopleStr}${visitStr}
+                    <div class="mt-2 flex items-center gap-1.5">
+                        <span class="text-[11px] font-bold text-purple-700">📅 驗收日</span>
+                        <input type="date" id="route-marker-date-${s.wpIdx}" value="${w.verificationDate || ''}"
+                            style="font-size:12px;padding:2px 6px;border:1px solid #c4b5fd;border-radius:4px;">
+                        <button id="route-marker-clear-${s.wpIdx}" style="font-size:11px;color:#e11d48;text-decoration:underline;background:none;border:0;cursor:pointer;">清空</button>
+                    </div>
+                    ${w.isCustom ? '<div class="text-[10px] text-rose-500 mt-1">📍 自訂點：日期僅存於路線</div>' : '<div class="text-[10px] text-slate-400 mt-1">改完即時寫回個案</div>'}
+                </div>`;
+            _routeMarkerInfoWin.setContent(html);
+            _routeMarkerInfoWin.open({ map: _routeMap, anchor: marker });
+            // 開啟後才能 bind listener（DOM 此時才存在）
+            google.maps.event.addListenerOnce(_routeMarkerInfoWin, 'domready', () => {
+                const inp = document.getElementById(`route-marker-date-${s.wpIdx}`);
+                const clr = document.getElementById(`route-marker-clear-${s.wpIdx}`);
+                if (inp) inp.addEventListener('change', () => {
+                    window.routeSetWpDate(s.wpIdx, inp.value);
+                    _routeMarkerInfoWin.close();
+                });
+                if (clr) clr.addEventListener('click', () => {
+                    window.routeSetWpDate(s.wpIdx, '');
+                    _routeMarkerInfoWin.close();
+                });
+            });
+        }
+
+        window.routeBatchApplyDate = function() {
+            const dInp = document.getElementById('route-batch-date');
+            const val = dInp?.value || '';
+            if (!val) { showToast('請先選日期'); dInp?.focus(); return; }
+            const checked = _routeWaypoints.filter(w => w.included);
+            if (checked.length === 0) { showToast('請先勾選要套用的 row'); return; }
+            const overwriteCount = checked.filter(w => w.verificationDate && w.verificationDate !== val).length;
+            if (overwriteCount > 0 && !confirm(`其中 ${overwriteCount} 筆已有不同的驗收日，確定全部覆蓋為 ${val}？`)) return;
+            _routeBatchSetDate(checked, val);
+        };
+        window.routeBatchClearDate = function() {
+            const checked = _routeWaypoints.filter(w => w.included);
+            if (checked.length === 0) { showToast('請先勾選要清空的 row'); return; }
+            const hasDate = checked.filter(w => w.verificationDate).length;
+            if (hasDate === 0) { showToast('勾選的 row 都已經沒有驗收日'); return; }
+            if (!confirm(`要把 ${hasDate} 筆 row 的驗收日清空？（個案會回到「未驗收」）`)) return;
+            _routeBatchSetDate(checked, '');
+        };
+        function _routeBatchSetDate(wps, val) {
+            let touched = 0;
+            const seenIds = new Set();
+            wps.forEach(w => {
+                w.verificationDate = val;          // 不論個案是否找得到，先更新 waypoint
+                if (w.isCustom) return;             // 自訂點不寫回個案
+                const wn = _routeNormAddr(w.addr);
+                const targets = (verifyData.cases || []).filter(c => _routeNormAddr(c.address) === wn);
+                targets.forEach(c => {
+                    if (seenIds.has(c.id)) return;
+                    seenIds.add(c.id);
+                    c.verificationDate = val;
+                    if (val && c.status === 'pending') c.status = 'inProgress';
+                    touched++;
+                    if (typeof _scheduleAutoCloudSync === 'function') _scheduleAutoCloudSync(c.id);
+                });
+            });
+            saveVerifyData();
+            if (typeof vRenderDashboard === 'function') vRenderDashboard();
+            if (typeof vRenderCaseList === 'function') vRenderCaseList();
+            renderRouteWaypointList();
+            renderRouteOnMap();
+            showToast(`✅ ${val || '清空'} 已套到 ${touched} 筆個案`);
+        }
+
         window.routeEditAddr = async function(idx) {
             const w = _routeWaypoints[idx];
             if (!w) return;
@@ -16981,13 +17160,22 @@ ${rawDraft}
             });
             const includedWps = _routeWaypoints.filter(w => w.included && w.latLng);
             includedWps.forEach((w, i) => {
+                const cnt = w.peopleCount || 1;
+                const peopleSuffix = cnt > 1 ? `·${cnt}` : '';
+                const peopleHint   = cnt > 1 ? `（同址 ${cnt} 人${w.names && w.names.length ? '：' + w.names.join('、') : ''}）` : '';
+                // hover tooltip：編號 + 姓名 + 驗收日（依凱宇要求）
+                const dateHint = w.verificationDate ? `\n📅 ${w.verificationDate}` : '\n（未排驗收日）';
+                const visitHint = w.visitDate && w.visitDate !== w.verificationDate ? `\n🗓 訪視日 ${w.visitDate}` : '';
                 seq.push({
                     latLng: { ...w.latLng },
-                    label: `${i + 1}. ${w.name || w.addr}`,
+                    label: `${i + 1}. ${w.name || w.addr}${peopleHint}${dateHint}${visitHint}`,
                     role: 'waypoint',
-                    labelText: String(i + 1),
+                    labelText: String(i + 1) + peopleSuffix,
                     category: w.category,
                     isCustom: w.isCustom,
+                    peopleCount: cnt,
+                    wpIdx: _routeWaypoints.indexOf(w),  // marker click 用：定位回 _routeWaypoints
+                    verificationDate: w.verificationDate || '',
                 });
             });
             if (_routeDest?.latLng) seq.push({
@@ -17022,8 +17210,8 @@ ${rawDraft}
                 used.set(key, n + 1);
             });
 
-            // 顏色：起綠、終紅、起終灰紫、身障紫、中高琥珀、訪視青、自訂藍
-            const COLOR = { origin: '#10b981', dest: '#ef4444', 'origin-dest': '#475569', '身障': '#a855f7', '中高勞通': '#f59e0b', '訪視': '#06b6d4', custom: '#3b82f6', default: '#7c3aed' };
+            // 顏色：起綠、終紅、起終灰紫、身障紫、中高琥珀、訪視青、自訂粉
+            const COLOR = { origin: '#10b981', dest: '#ef4444', 'origin-dest': '#475569', '身障': '#a855f7', '中高勞通': '#f59e0b', '訪視': '#06b6d4', custom: '#f43f5e', default: '#7c3aed' };
             seq.forEach((s, i) => {
                 let color = COLOR.default;
                 if (COLOR[s.role]) color = COLOR[s.role];
@@ -17031,9 +17219,17 @@ ${rawDraft}
                 else if (s.category && COLOR[s.category]) color = COLOR[s.category];
 
                 // 起/終/起終的 label 是中文較長 → marker 稍大
+                // 訪視點若帶人數後綴（例 "3·2"）也放大避免截字
                 const isSpecial = s.role === 'origin' || s.role === 'dest' || s.role === 'origin-dest';
-                const scale = isSpecial && s.labelText.length > 1 ? 18 : 14;
-                const fontSize = isSpecial && s.labelText.length > 1 ? '10px' : '12px';
+                const hasPeople = (s.peopleCount || 1) > 1;
+                const scale    = (isSpecial && s.labelText.length > 1) || hasPeople ? 18 : 14;
+                const fontSize = (isSpecial && s.labelText.length > 1) || hasPeople ? '10px' : '12px';
+
+                // 已設驗收日的訪視點 → 加粗綠色外圈（一眼看到「已選日期」）
+                const isWp = s.role === 'waypoint';
+                const hasDate = isWp && !!s.verificationDate;
+                const strokeColor  = hasDate ? '#10b981' : 'white';
+                const strokeWeight = hasDate ? 4 : 2;
 
                 const marker = new google.maps.Marker({
                     position: s.latLng,
@@ -17045,10 +17241,14 @@ ${rawDraft}
                         scale,
                         fillColor: color,
                         fillOpacity: 1,
-                        strokeColor: 'white',
-                        strokeWeight: 2,
+                        strokeColor,
+                        strokeWeight,
                     },
                 });
+                // 點 marker → 開 InfoWindow 改驗收日（不用滾回 row）
+                if (isWp && typeof s.wpIdx === 'number') {
+                    marker.addListener('click', () => _routeOpenMarkerEditor(marker, s));
+                }
                 _routeMarkers.push(marker);
             });
 
@@ -17057,10 +17257,17 @@ ${rawDraft}
             // 至少要有 origin + dest 才算路線（waypoints 可選）
             const canRoute = _routeOrigin?.latLng && _routeDest?.latLng;
             if (canRoute) {
+                const MAX_WP = 25; // Google Directions JS API 限制
+                let wpsForRoute = includedWps;
+                let exceededNote = '';
+                if (includedWps.length > MAX_WP) {
+                    wpsForRoute = includedWps.slice(0, MAX_WP);
+                    exceededNote = ` ⚠ 中途點 ${includedWps.length} 超過 Google 上限 ${MAX_WP}，僅規劃前 ${MAX_WP} 個（請取消勾選一些或拆兩天）`;
+                }
                 const request = {
                     origin: _routeOrigin.latLng,
                     destination: _routeDest.latLng,
-                    waypoints: includedWps.map(w => ({ location: w.latLng, stopover: true })),
+                    waypoints: wpsForRoute.map(w => ({ location: w.latLng, stopover: true })),
                     optimizeWaypoints: false,
                     travelMode: google.maps.TravelMode.DRIVING,
                 };
@@ -17074,7 +17281,10 @@ ${rawDraft}
                         const min = Math.round(dur / 60);
                         const icon = _routeMode === 'motorcycle' ? '🏍' : '🚗';
                         const note = _routeMode === 'motorcycle' ? '（汽車路徑估算，實際請以 Google Maps 為準）' : '';
-                        if (summaryEl) summaryEl.textContent = `${icon} ${km} km，約 ${min} 分鐘 ${note}`;
+                        if (summaryEl) summaryEl.textContent = `${icon} ${km} km，約 ${min} 分鐘 ${note}${exceededNote}`;
+                    } else if (status === 'MAX_WAYPOINTS_EXCEEDED') {
+                        if (summaryEl) summaryEl.textContent = `⚠ 中途點 ${includedWps.length} 個超過 Google 上限 ${MAX_WP}，請取消勾選一些或拆兩天規劃`;
+                        try { _routeDirRenderer.setDirections({ routes: [] }); } catch(e) {}
                     } else {
                         if (summaryEl) summaryEl.textContent = `⚠ Google Directions 失敗：${status}`;
                         try { _routeDirRenderer.setDirections({ routes: [] }); } catch(e) {}
@@ -17099,6 +17309,145 @@ ${rawDraft}
             }
             // 切換不影響 OSRM 路徑（公開伺服器只有 driving profile），但時間估算會調整
             renderRouteOnMap();
+        };
+
+        // ====================================================================
+        // 行程規劃路線：Firestore 存 / 載 / 列 / 刪（跨電腦延續工作）
+        // doc path: users/{uid}/routes/{routeId}
+        // ====================================================================
+        function _routeBuildSnapshot(name) {
+            return {
+                name: name || ('路線_' + new Date().toLocaleString('sv-SE').replace(/[: ]/g,'-')),
+                routeDate: _routeCurrentDate || '',
+                travelMode: _routeMode || 'car',
+                origin: _routeOrigin ? { addr: _routeOrigin.addr, latLng: _routeOrigin.latLng || null } : null,
+                dest:   _routeDest   ? { addr: _routeDest.addr,   latLng: _routeDest.latLng   || null } : null,
+                waypoints: _routeWaypoints.map(w => ({
+                    key: w.key, name: w.name, addr: w.addr,
+                    latLng: w.latLng || null, included: !!w.included,
+                    schedKey: w.schedKey || '', visitTime: w.visitTime || '',
+                    fromVerify: !!w.fromVerify, category: w.category || '',
+                    visitDate: w.visitDate || '', verificationDate: w.verificationDate || '',
+                    peopleCount: w.peopleCount || 1, names: w.names || [],
+                    isCustom: !!w.isCustom,
+                })),
+                updatedAt: serverTimestamp(),
+            };
+        }
+        window.routeOpenSaveDialog = function() {
+            if (!currentUser) { showToast('請先登入才能存到雲端'); return; }
+            if (_routeWaypoints.length === 0 && !_routeOrigin && !_routeDest) { showToast('目前路線是空的，沒東西可存'); return; }
+            const modal = document.getElementById('route-save-modal');
+            const inp   = document.getElementById('route-save-name');
+            const sum   = document.getElementById('route-save-summary');
+            const def = _routeCurrentDate ? `${_routeCurrentDate} 路線` : `路線_${new Date().toLocaleDateString('sv-SE')}`;
+            if (inp) { inp.value = def; setTimeout(() => inp.select(), 50); }
+            if (sum) sum.textContent = `將儲存：${_routeWaypoints.length} 個訪視點 / ${_routeMode === 'motorcycle' ? '機車' : '開車'} / ${_routeCurrentDate || '無指定日期'}`;
+            modal?.classList.remove('hidden');
+        };
+        window.routeSaveCurrent = async function() {
+            if (!currentUser) { showToast('請先登入'); return; }
+            const inp = document.getElementById('route-save-name');
+            const name = (inp?.value || '').trim();
+            if (!name) { showToast('請輸入路線名稱'); inp?.focus(); return; }
+            try {
+                const snap = _routeBuildSnapshot(name);
+                snap.createdAt = serverTimestamp();
+                await addDoc(collection(db, 'users', currentUser.uid, 'routes'), snap);
+                document.getElementById('route-save-modal')?.classList.add('hidden');
+                showToast(`✅ 路線「${name}」已存到雲端`);
+            } catch(err) {
+                console.error('存路線失敗', err);
+                showToast('❌ 存路線失敗：' + (err.message || err));
+            }
+        };
+        window.routeOpenLoadDialog = async function() {
+            if (!currentUser) { showToast('請先登入'); return; }
+            const modal = document.getElementById('route-load-modal');
+            const list  = document.getElementById('route-load-list');
+            modal?.classList.remove('hidden');
+            if (list) list.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">載入中...</p>';
+            try {
+                const q = query(collection(db, 'users', currentUser.uid, 'routes'), orderBy('updatedAt', 'desc'));
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    if (list) list.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">還沒有存過路線。先在另一台電腦規劃，按「存路線」就會出現在這。</p>';
+                    return;
+                }
+                const rows = [];
+                snap.forEach(d => {
+                    const r = d.data();
+                    const wpsCount = (r.waypoints || []).length;
+                    const datedCount = (r.waypoints || []).filter(w => w.verificationDate).length;
+                    const upd = r.updatedAt?.toDate?.() ? r.updatedAt.toDate().toLocaleString('sv-SE') : '';
+                    rows.push(`
+                        <div class="border border-slate-200 rounded-lg p-3 hover:border-indigo-300 transition-colors">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-slate-800 text-sm flex-1 min-w-0 truncate">${(r.name||'(無名)').replace(/</g,'&lt;')}</span>
+                                ${r.routeDate ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">${r.routeDate}</span>` : ''}
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${r.travelMode === 'motorcycle' ? '🏍 機車' : '🚗 開車'}</span>
+                            </div>
+                            <div class="text-[11px] text-slate-500 mt-1">${wpsCount} 點 · ${datedCount} 已排日期 · 更新 ${upd}</div>
+                            <div class="flex gap-2 mt-2">
+                                <button onclick="window.routeLoadOne('${d.id}')" class="text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded shadow active:scale-95"><i class="fa-solid fa-folder-open mr-1"></i>載入</button>
+                                <button onclick="window.routeDeleteOne('${d.id}')" class="text-xs text-rose-600 hover:text-rose-800 underline ml-auto">刪除</button>
+                            </div>
+                        </div>`);
+                });
+                if (list) list.innerHTML = rows.join('');
+            } catch(err) {
+                console.error('列路線失敗', err);
+                if (list) list.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">載入失敗：${err.message || err}</p>`;
+            }
+        };
+        window.routeLoadOne = async function(routeId) {
+            if (!currentUser) return;
+            try {
+                const ref = doc(db, 'users', currentUser.uid, 'routes', routeId);
+                const ds = await getDoc(ref);
+                if (!ds.exists()) { showToast('找不到該路線'); return; }
+                const r = ds.data();
+                if (!confirm(`載入「${r.name || ''}」會覆蓋目前未存的路線。確定？`)) return;
+                _routeWaypoints = (r.waypoints || []).map(w => ({ ...w, included: w.included !== false }));
+                _routeOrigin = r.origin || null;
+                _routeDest   = r.dest   || null;
+                _routeCurrentDate = r.routeDate || '';
+                _routeMode = r.travelMode === 'motorcycle' ? 'motorcycle' : 'car';
+                // 同步 UI 控制項
+                const oInp = document.getElementById('route-origin-addr');
+                const dInp = document.getElementById('route-dest-addr');
+                const dateInp = document.getElementById('route-date');
+                const sourceSel = document.getElementById('route-source');
+                if (oInp && _routeOrigin) oInp.value = _routeOrigin.addr || '';
+                if (dInp && _routeDest)   dInp.value = _routeDest.addr   || '';
+                if (_routeCurrentDate && sourceSel) { sourceSel.value = 'date'; if (dateInp) { dateInp.classList.remove('hidden'); dateInp.value = _routeCurrentDate; } }
+                window.routeSetMode(_routeMode);
+                renderRouteWaypointList();
+                renderRouteOnMap();
+                document.getElementById('route-load-modal')?.classList.add('hidden');
+                showToast(`✅ 已載入「${r.name || ''}」`);
+            } catch(err) {
+                console.error('載入路線失敗', err);
+                showToast('❌ 載入失敗：' + (err.message || err));
+            }
+        };
+        window.routeDeleteOne = async function(routeId) {
+            if (!currentUser) return;
+            // 從 list 抓 name（不從 onclick 傳，避免 quote escape 問題）
+            let name = '';
+            try {
+                const ds = await getDoc(doc(db, 'users', currentUser.uid, 'routes', routeId));
+                if (ds.exists()) name = ds.data().name || '';
+            } catch(e) {}
+            if (!confirm(`確定刪除路線「${name || routeId}」？此動作不可還原。`)) return;
+            try {
+                await deleteDoc(doc(db, 'users', currentUser.uid, 'routes', routeId));
+                showToast(`🗑 已刪除「${name || ''}」`);
+                window.routeOpenLoadDialog(); // 重新整理列表
+            } catch(err) {
+                console.error('刪除路線失敗', err);
+                showToast('❌ 刪除失敗：' + (err.message || err));
+            }
         };
 
         window.routeOpenInGmaps = function() {
@@ -18003,8 +18352,57 @@ ${rawDraft}
         </div>
     </div>
 
+    <!-- 行程規劃路線存檔 / 載入 modal -->
+    <div id="route-save-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onclick="if(event.target===this) document.getElementById('route-save-modal').classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-floppy-disk text-indigo-500 mr-1"></i>儲存路線到雲端</h3>
+                <button onclick="document.getElementById('route-save-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">路線名稱</label>
+            <input type="text" id="route-save-name" placeholder="例：5/15 高雄北區" class="w-full p-2 border border-slate-300 rounded-lg text-sm mb-3" maxlength="60">
+            <p id="route-save-summary" class="text-xs text-slate-500 mb-3"></p>
+            <div class="flex gap-2 justify-end">
+                <button onclick="document.getElementById('route-save-modal').classList.add('hidden')" class="px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+                <button onclick="window.routeSaveCurrent()" class="px-4 py-2 text-sm font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg shadow active:scale-95">存到雲端</button>
+            </div>
+        </div>
+    </div>
+    <div id="route-load-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onclick="if(event.target===this) document.getElementById('route-load-modal').classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 max-h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-folder-open text-slate-600 mr-1"></i>我的路線</h3>
+                <button onclick="document.getElementById('route-load-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="route-load-list" class="flex-1 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-400 text-center py-4">載入中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訪視評估表 浮動預覽視窗（vPreviewDocFloat / openDocFloatPreview 使用） -->
+    <div id="doc-float-preview" class="hidden fixed z-50 bg-white shadow-2xl rounded-2xl border border-slate-200 overflow-hidden flex flex-col"
+         style="right:16px; bottom:16px; width:min(480px, calc(100vw - 32px)); height:60vh; max-height:80vh;">
+        <div id="doc-float-header" class="flex items-center gap-2 px-3 py-2 bg-slate-100 border-b border-slate-200 cursor-move select-none touch-none">
+            <i class="fa-solid fa-file-word text-blue-600 text-sm shrink-0"></i>
+            <span id="doc-float-title" class="flex-1 text-sm font-bold text-slate-700 truncate">訪視評估表</span>
+            <a id="doc-float-ext" href="#" target="_blank" rel="noopener" class="shrink-0 w-7 h-7 rounded-md hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600" title="新分頁開啟"><i class="fa-solid fa-up-right-from-square text-xs"></i></a>
+            <button id="doc-float-min-btn" onclick="window.docFloatToggleMin()" class="shrink-0 w-7 h-7 rounded-md hover:bg-slate-200 flex items-center justify-center text-slate-500" title="最小化"><i class="fa-solid fa-minus text-xs"></i></button>
+            <button onclick="window.docFloatClose()" class="shrink-0 w-7 h-7 rounded-md hover:bg-red-100 flex items-center justify-center text-slate-500 hover:text-red-600" title="關閉"><i class="fa-solid fa-xmark text-sm"></i></button>
+        </div>
+        <div class="relative flex-1 bg-slate-50">
+            <div id="doc-float-loading" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm gap-2 bg-slate-50/80 z-10" style="display:none;">
+                <i class="fa-solid fa-circle-notch fa-spin"></i>載入預覽中…
+            </div>
+            <iframe id="doc-float-iframe" class="w-full h-full border-0 bg-white" src="about:blank" onload="(function(){var l=document.getElementById('doc-float-loading'); if(l) l.style.display='none';})()"></iframe>
+        </div>
+    </div>
+
     <!-- LINE QR 浮動按鈕（在身障/中高齡工作區以外也可用） -->
     <button id="btn-show-qr" onclick="document.getElementById('qr-modal').classList.remove('hidden')"
         class="fixed bottom-8 left-8 z-40 w-14 h-14 bg-[#06C755] text-white rounded-full shadow-xl flex items-center justify-center text-2xl hover:bg-[#05a847] active:scale-95 transition-all"
         title="顯示 LINE QR 名片">
-        <svg viewBox="0 0 24 24" class="w-7 h-7 fill-white" xmlns="http://www.w3.org/2000/svg"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.
+        <svg viewBox="0 0 24 24" class="w-7 h-7 fill-white" xmlns="http://www.w3.org/2000/svg"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164.949c-.045.28-.203 1.107.967.605 1.171-.502 6.323-3.722 8.628-6.376C23.952 14.115 24 12.4 24 10.314z"/></svg>
+    </button>
+</body>
+</html>
