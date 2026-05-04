@@ -67,6 +67,7 @@
             }
         }
     </style>
+    <!-- 🆕 Google Maps JS API 在 initRouteView 時動態載入（用 settings.googleMapsApiKey） -->
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased h-screen flex flex-col overflow-hidden relative">
 
@@ -180,7 +181,7 @@
                 <div class="flex items-center justify-between bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap gap-2">
                     <div class="text-sm md:text-base text-slate-600 font-bold flex items-center gap-2">
                         <i class="fa-solid fa-user-check text-blue-500"></i>
-                        <span>預設只顯示主責：<span class="text-blue-700">凱宇/蔡凱宇</span>（且隱藏已完成報告）</span>
+                        <span>預設只顯示主責：<span class="text-blue-700">凱宇/蔡凱宇</span>（含已完成報告）</span>
                     </div>
                     <button id="btn-toggle-other-owners" class="text-sm md:text-base font-bold px-4 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors active:scale-95">
                         展開其他主責案件
@@ -730,6 +731,75 @@
                 </div>
             </div>
 
+            <!-- 🆕 研習/宣導 modal（新增 + 編輯共用） -->
+            <div id="sch-modal" class="hidden fixed inset-0 z-[60] bg-black/50 items-center justify-center p-4 overflow-y-auto" style="display:none">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 mx-auto" onclick="event.stopPropagation()">
+                    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+                        <h3 id="sch-modal-title" class="text-xl font-bold text-slate-700">
+                            <i class="fa-solid fa-graduation-cap text-amber-500 mr-2"></i>新增研習/宣導
+                        </h3>
+                        <button onclick="window.closeSchModal()" class="text-slate-400 hover:text-slate-600 text-3xl leading-none w-9 h-9 flex items-center justify-center">×</button>
+                    </div>
+                    <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                        <input type="hidden" id="sch-modal-id">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-600 mb-1">日期 *</label>
+                                <input type="date" id="sch-modal-date" class="w-full p-2.5 border border-slate-200 rounded-lg text-base">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-600 mb-1">類型 *</label>
+                                <select id="sch-modal-type" class="w-full p-2.5 border border-slate-200 rounded-lg text-base bg-white">
+                                    <option value="研習">研習</option>
+                                    <option value="宣導">宣導</option>
+                                    <option value="訪視">訪視</option>
+                                    <option value="成效">成效</option>
+                                    <option value="審查會">審查會</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-1">主題 / 課程名稱</label>
+                            <input type="text" id="sch-modal-note" placeholder="例：職務再設計研習課程" class="w-full p-2.5 border border-slate-200 rounded-lg text-base">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-600 mb-1">地點</label>
+                                <input type="text" id="sch-modal-location" class="w-full p-2.5 border border-slate-200 rounded-lg text-base">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-600 mb-1">時數</label>
+                                <input type="text" id="sch-modal-hours" placeholder="例：3" class="w-full p-2.5 border border-slate-200 rounded-lg text-base">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-1"><i class="fa-solid fa-paperclip mr-1 text-blue-500"></i>課程資料檔案</label>
+                            <input type="file" id="sch-modal-files" multiple class="w-full text-sm">
+                            <div id="sch-modal-files-list" class="mt-2 space-y-1"></div>
+                            <p class="text-xs text-slate-400 mt-1">單檔 ≤ 700KB；超過請放 Google Drive 並貼下方雲端連結</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-1"><i class="fa-solid fa-microphone mr-1 text-purple-500"></i>上課錄音檔</label>
+                            <input type="file" id="sch-modal-audio" accept="audio/*" class="w-full text-sm">
+                            <div id="sch-modal-audio-info" class="mt-2"></div>
+                            <p class="text-xs text-slate-400 mt-1">錄音檔 ≤ 800KB（短語音）；長檔請放 Google Drive 並貼雲端連結</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-1"><i class="fa-solid fa-link mr-1 text-emerald-500"></i>雲端連結（檔案太大時用）</label>
+                            <input type="text" id="sch-modal-url" placeholder="貼 Google Drive 共享連結" class="w-full p-2.5 border border-slate-200 rounded-lg text-base">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-1"><i class="fa-solid fa-pen-to-square mr-1 text-amber-500"></i>心得 / 內容摘要</label>
+                            <textarea id="sch-modal-reflection" rows="5" placeholder="課程心得、重點摘要..." class="w-full p-2.5 border border-slate-200 rounded-lg text-base resize-y"></textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 p-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+                        <button onclick="window.closeSchModal()" class="px-4 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-lg">取消</button>
+                        <button onclick="window.saveSchModal()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg shadow"><i class="fa-solid fa-floppy-disk mr-1"></i>儲存</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- ================= 視圖: 系統設定 ================= -->
             <div id="view-settings" class="hidden max-w-3xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 pb-20">
                 <h2 class="text-xl md:text-2xl font-bold mb-6 text-slate-700 border-b pb-3"><i class="fa-solid fa-sliders mr-2"></i>系統設定</h2>
@@ -1058,6 +1128,9 @@
                     <button class="v-sub-tab-btn flex-1 py-2.5 text-sm text-slate-500 hover:text-purple-500 transition-colors" data-subtab="schedule" onclick="window.switchToScheduleView()">
                         <i class="fa-solid fa-route mr-1"></i> 行程表
                     </button>
+                    <button class="v-sub-tab-btn flex-1 py-2.5 text-sm text-slate-500 hover:text-purple-500 transition-colors" data-subtab="route" onclick="window.switchToRouteView()">
+                        <i class="fa-solid fa-map-location-dot mr-1"></i> 行程規劃
+                    </button>
                 </div>
 
                 <!-- 主視圖：匯入 + 儀表板 + 案件列表 -->
@@ -1072,21 +1145,26 @@
                             <h2 class="text-lg font-bold text-slate-700 mb-5 border-b pb-3">
                                 <i class="fa-solid fa-chart-bar text-blue-500 mr-2"></i>驗收進度總覽
                             </h2>
-                            <div class="grid grid-cols-3 gap-3 md:gap-5">
-                                <div class="bg-slate-50 border border-slate-200 p-4 md:p-5 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('pending')">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                                <div class="bg-slate-50 border border-slate-200 p-3 md:p-4 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('pending')">
                                     <p class="text-xs md:text-sm font-bold text-slate-500 mb-2 text-center">📋 未驗收</p>
                                     <p class="text-3xl md:text-4xl font-black text-slate-600 text-center mb-2" id="v-count-pending">0</p>
                                     <div id="v-count-pending-detail" class="space-y-0.5"></div>
                                 </div>
-                                <div class="bg-blue-50 border border-blue-200 p-4 md:p-5 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('inProgress')">
+                                <div class="bg-blue-50 border border-blue-200 p-3 md:p-4 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('inProgress')">
                                     <p class="text-xs md:text-sm font-bold text-blue-700 mb-2 text-center">🔄 進行中</p>
                                     <p class="text-3xl md:text-4xl font-black text-blue-600 text-center mb-2" id="v-count-inprogress">0</p>
                                     <div id="v-count-inprogress-detail" class="space-y-0.5"></div>
                                 </div>
-                                <div class="bg-emerald-50 border border-emerald-200 p-4 md:p-5 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('closed')">
+                                <div class="bg-emerald-50 border border-emerald-200 p-3 md:p-4 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('closed')">
                                     <p class="text-xs md:text-sm font-bold text-emerald-700 mb-2 text-center">✅ 結案</p>
                                     <p class="text-3xl md:text-4xl font-black text-emerald-600 text-center mb-2" id="v-count-closed">0</p>
                                     <div id="v-count-closed-detail" class="space-y-0.5"></div>
+                                </div>
+                                <div class="bg-rose-50 border border-rose-200 p-3 md:p-4 rounded-xl cursor-pointer hover:shadow-md transition-shadow active:scale-95" onclick="window.vFilterByStatus('abandoned')">
+                                    <p class="text-xs md:text-sm font-bold text-rose-700 mb-2 text-center">🚫 放棄</p>
+                                    <p class="text-3xl md:text-4xl font-black text-rose-600 text-center mb-2" id="v-count-abandoned">0</p>
+                                    <div id="v-count-abandoned-detail" class="space-y-0.5"></div>
                                 </div>
                             </div>
                         </div>
@@ -1112,6 +1190,13 @@
                                         <option value="pending">未驗收</option>
                                         <option value="inProgress">進行中</option>
                                         <option value="closed">結案</option>
+                                        <option value="abandoned">🚫 放棄</option>
+                                    </select>
+                                    <select id="v-filter-quality" class="p-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500" title="找出資料不完整的案件">
+                                        <option value="">資料完整度</option>
+                                        <option value="noReview">⚠ 無審查資料</option>
+                                        <option value="noDate">📅 缺成效驗收日</option>
+                                        <option value="noAddr">📍 缺地址</option>
                                     </select>
                                     <select id="v-filter-year" class="p-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500">
                                         <option value="">全部年度</option>
@@ -1120,6 +1205,9 @@
                                         <option value="">全部類別</option>
                                         <option value="身障">身障</option>
                                         <option value="中高勞通">中高勞通</option>
+                                    </select>
+                                    <select id="v-filter-district" class="p-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500">
+                                        <option value="">全部轄區</option>
                                     </select>
                                     <input type="text" id="v-search" placeholder="搜尋姓名或單位..." class="p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 min-w-[140px]">
                                 </div>
@@ -1176,6 +1264,87 @@
 
                     </div>
                 </div><!-- end verify-schedule -->
+
+                <!-- ===================== 🆕 行程規劃視圖（地圖 + 即時路線） ===================== -->
+                <div id="verify-route" class="hidden">
+                    <div class="max-w-5xl mx-auto p-3 md:p-5 pb-28 space-y-3">
+
+                        <!-- 起點/終點 + 過濾控制 -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 space-y-3">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">🏠 起點</label>
+                                    <div class="flex gap-1">
+                                        <select id="route-origin-preset" class="p-2 border border-slate-200 rounded-lg text-xs bg-white shrink-0">
+                                            <option value="home">家</option>
+                                            <option value="office">公司</option>
+                                            <option value="custom">自訂</option>
+                                        </select>
+                                        <input type="text" id="route-origin-addr" class="flex-1 min-w-0 p-2 border border-slate-200 rounded-lg text-sm" placeholder="地址">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">🏁 終點</label>
+                                    <div class="flex gap-1">
+                                        <select id="route-dest-preset" class="p-2 border border-slate-200 rounded-lg text-xs bg-white shrink-0">
+                                            <option value="home">家</option>
+                                            <option value="office">公司</option>
+                                            <option value="custom">自訂</option>
+                                        </select>
+                                        <input type="text" id="route-dest-addr" class="flex-1 min-w-0 p-2 border border-slate-200 rounded-lg text-sm" placeholder="地址">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-2 items-center">
+                                <label class="text-xs font-bold text-slate-600">範圍：</label>
+                                <select id="route-source" class="p-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                    <option value="filtered">目前篩選結果（成效）</option>
+                                    <option value="date">指定日期（訪視+成效）</option>
+                                    <option value="all">全部主責（成效）</option>
+                                </select>
+                                <input type="date" id="route-date" class="p-2 border border-slate-200 rounded-lg text-xs hidden">
+                                <label class="flex items-center gap-1 text-xs text-slate-600 font-bold cursor-pointer select-none">
+                                    <input type="checkbox" id="route-exclude-pending" checked class="w-4 h-4 accent-purple-600">
+                                    排除未驗收
+                                </label>
+                                <button onclick="window.routeLoadPoints()" class="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95">
+                                    <i class="fa-solid fa-arrows-rotate mr-1"></i>載入訪視點
+                                </button>
+                                <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 ml-auto">
+                                    <button id="route-mode-car" onclick="window.routeSetMode('car')" class="text-xs font-bold px-2.5 py-1.5 rounded bg-white shadow text-slate-700"><i class="fa-solid fa-car mr-1"></i>開車</button>
+                                    <button id="route-mode-moto" onclick="window.routeSetMode('motorcycle')" class="text-xs font-bold px-2.5 py-1.5 rounded text-slate-500 hover:text-slate-700"><i class="fa-solid fa-motorcycle mr-1"></i>機車</button>
+                                </div>
+                                <button onclick="window.routeOpenInGmaps()" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95">
+                                    <i class="fa-brands fa-google mr-1"></i>在 Google Maps 開啟
+                                </button>
+                            </div>
+                            <p id="route-status" class="text-xs text-slate-500"></p>
+                        </div>
+
+                        <!-- 訪視點清單（拖曳調整順序） -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="text-sm font-bold text-slate-700"><i class="fa-solid fa-list-ol text-purple-500 mr-1"></i>訪視點順序（拖曳排）</h4>
+                                <span id="route-summary" class="text-xs text-slate-500"></span>
+                            </div>
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" id="route-custom-input" placeholder="自訂地點地址（例：午餐 / 加油站完整地址）" class="flex-1 p-2 border border-slate-200 rounded-lg text-xs" onkeydown="if(event.key==='Enter'){event.preventDefault();window.routeAddCustomPoint();}">
+                                <button onclick="window.routeAddCustomPoint()" class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow active:scale-95 shrink-0">
+                                    <i class="fa-solid fa-plus mr-1"></i>加入自訂
+                                </button>
+                            </div>
+                            <div id="route-waypoint-list" class="space-y-2 min-h-[80px]">
+                                <p class="text-xs text-slate-400 text-center py-4">點「載入訪視點」按鈕開始</p>
+                            </div>
+                        </div>
+
+                        <!-- 地圖 -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div id="route-map" style="height: 480px; width: 100%;"></div>
+                        </div>
+
+                    </div>
+                </div><!-- end verify-route -->
 
                 <!-- 詳情視圖（點選案件後顯示） -->
                 <div id="verify-detail" class="hidden flex-1 flex flex-col overflow-hidden">
@@ -2650,10 +2819,11 @@
 
         
         
-        let settings = { 
+        let settings = {
             committee: [...DEFAULT_COMMITTEE],
             gasUrl: 'https://script.google.com/macros/s/AKfycbxelfY8BWyg2ZWeO4UbnenSH8eLS20qojH5N-tvZgvj_fcgoLL-MJosD53NIdo03qPdFw/exec',
             geminiApiKey: 'AIzaSyCwVi-CjaVjmchphqLFZ-sTeQg9ey6wexE',
+            googleMapsApiKey: 'AIzaSyDyrnPhIS3tvU1J9L1TZnQU5NmGytM7PsI',
             aiPromptStyle: '請用專業、客觀且具同理心的口吻，將以下草稿潤飾成正式的職務再設計評估報告段落。請修正錯字並讓語句通順，不需加入額外的引言或結語，直接給出潤飾後的純文字內容即可。',
             lineQrImage: '',
             districts: [
@@ -2803,25 +2973,61 @@
         //   1. 必須有 clientName（未命名案件一律不算）
         //   2. 必須有 owner (接案人員) 並且要在 PRIMARY_OWNER_ALIASES 裡
         // 中高齡工作站佔位名「（工作站案件）」也算命名，不排除
-        // 🆕 主責判斷（2026-04-27 放寬）：訪視專員 / 協訪專員 / 轄區承辦 任一是凱宇/蔡凱宇即視為主責
-        //   1. inspector（訪視專員）∈ PRIMARY_OWNER_ALIASES
-        //   2. 或 coInspectors（協訪專員陣列）含 PRIMARY_OWNER_ALIASES
-        //   3. 或 owner（轄區承辦）∈ PRIMARY_OWNER_ALIASES
-        // 三者擇一即可（不再要求 inspector/coInspectors 必須空白才看 owner）
-        // 動機：0425 起 inspector 欄被填成同事姓名後，舊資料即便 owner=凱宇 也會被誤排除
+        // 🆕 主責判斷（2026-04-29 第三次修正）：OR 三條件，owner / inspector / coInspectors 任一含凱宇即主責
+        //   背景：實際資料 owner = 接案人員（多為蔡凱宇）、inspector = 訪視承辦/審閱者（多為其他職再專員）
+        //   這跟使用者描述的「inspector = 職再專員、owner = 轄區承辦」相反，因此判斷不能單看 inspector
+        //   診斷結果（2026-04-29 diagPrimary）：身障 109 件，若只看 inspector 會誤排除 107 件
+        const _splitNames = (s) => String(s || '').split(/[、,，/／\s]+/).map(x => x.trim()).filter(Boolean);
+        const _matchesAlias = (raw) => {
+            if (!raw) return false;
+            const aliases = PRIMARY_OWNER_ALIASES;
+            const s = String(raw).trim();
+            if (aliases.includes(s)) return true;
+            const parts = _splitNames(s);
+            if (parts.some(p => aliases.includes(p))) return true;
+            return aliases.some(a => s.includes(a));
+        };
         const isPrimaryCase = (c) => {
             if (!c) return false;
             const name = String(c.clientName || '').trim();
             if (!name) return false;
-            const aliases = PRIMARY_OWNER_ALIASES;
-            const inspector = String(c.inspector || '').trim();
-            if (inspector && aliases.includes(inspector)) return true;
+            if (_matchesAlias(c.owner)) return true;
+            if (_matchesAlias(c.inspector)) return true;
             const co = Array.isArray(c.coInspectors) ? c.coInspectors : [];
-            if (co.some(x => aliases.includes(String(x || '').trim()))) return true;
-            const owner = String(c.owner || '').trim();
-            if (owner && aliases.includes(owner)) return true;
+            if (co.some(_matchesAlias)) return true;
             return false;
         };
+
+        // 🆕 console 診斷工具：在瀏覽器 F12 console 直接呼叫 diagPrimary() 看主責判斷狀況
+        window.diagPrimary = function() {
+            const isDis = (c) => /身心障礙|單側/.test(String(c.category || ''));
+            const isElder = (c) => /中高齡|工作站|勞工就業通/.test(String(c.category || ''));
+            const all = casesData || [];
+            const dis = all.filter(isDis);
+            const eld = all.filter(isElder);
+            const disPrim = dis.filter(isPrimaryCase);
+            const eldPrim = eld.filter(isPrimaryCase);
+            const disExcluded = dis.filter(c => !isPrimaryCase(c));
+            console.log(`%c=== 主責判斷診斷 ===`, 'font-weight:bold;color:#7c3aed');
+            console.log(`casesData 總筆數: ${all.length}`);
+            console.log(`├ 身障: ${dis.length}（主責 ${disPrim.length} / 被排除 ${disExcluded.length}）`);
+            console.log(`└ 中高/勞通: ${eld.length}（主責 ${eldPrim.length}）`);
+            console.log('— 身障被排除案件（inspector / coInspectors 不含凱宇）—');
+            console.table(disExcluded.map(c => ({
+                編號: c.caseNo || '',
+                姓名: c.clientName || '',
+                公司: c.company || '',
+                類別: c.category || '',
+                階段: c.stage || '',
+                inspector: c.inspector || '(空)',
+                coInspectors: (c.coInspectors||[]).filter(Boolean).join('、') || '(空)',
+                owner: c.owner || '(空)',
+                id: c.id,
+            })));
+            window.__diagDis = { all, dis, eld, disPrim, eldPrim, disExcluded };
+            return `身障 ${dis.length} 件 → 主責 ${disPrim.length}、被排除 ${disExcluded.length}；中高 ${eld.length} 件 → 主責 ${eldPrim.length}`;
+        };
+        window.__casesDataRef = () => casesData;
         const normalizeText = (s) => String(s || '').trim().toLowerCase();
         const parseDistrictKeywords = (s) => String(s || '').split(/[,，、\n]/).map(x => x.trim()).filter(Boolean);
         const getDistrictList = () => Array.isArray(settings.districts) ? settings.districts : [];
@@ -4037,6 +4243,46 @@
         }
         window.deleteSelectedCases = deleteSelectedCases;
 
+        // 表格 cell 點擊 → 變 input → blur 寫回 Firestore
+        window.clTableEditStart = function(td) {
+            if (!td || td.querySelector('input')) return; // 已在編輯中
+            const caseId = td.dataset.caseId;
+            const key    = td.dataset.key;
+            const type   = td.dataset.type || 'text';
+            const orig   = td.dataset.orig || '';
+            const inp = document.createElement('input');
+            inp.type = type;
+            inp.value = orig === '–' ? '' : orig;
+            inp.className = 'w-full p-1 border border-blue-400 rounded text-xs bg-white';
+            inp.style.minWidth = '80px';
+            // 替換內容
+            td.innerHTML = '';
+            td.appendChild(inp);
+            inp.focus();
+            if (type === 'text') inp.select();
+            const commit = async () => {
+                const val = inp.value;
+                if (val === orig) {
+                    // 沒變 → 還原顯示
+                    td.innerHTML = orig === '' ? '–' : (orig.length > 30 ? orig.slice(0, 30) + '…' : orig);
+                    return;
+                }
+                try {
+                    await updateDoc(doc(db, 'users', currentUser.uid, 'cases', caseId), { [key]: val });
+                    showToast('已更新');
+                    // 不主動 re-render，等 onSnapshot 觸發
+                } catch(e) {
+                    alert('更新失敗：' + e.message);
+                    td.innerHTML = orig === '' ? '–' : orig;
+                }
+            };
+            inp.addEventListener('blur', commit);
+            inp.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+                else if (e.key === 'Escape') { inp.value = orig; inp.blur(); }
+            });
+        };
+
         function setListViewMode(mode) {
             caseListViewMode = mode;
             const btnCards = document.getElementById('cl-view-cards');
@@ -4094,15 +4340,32 @@
                 : `<i class="fa-solid fa-eye mr-1"></i>顯示空欄位（共 ${hiddenCount} 欄隱藏中）`;
 
             const header = visibleFields.map(f => `<th class="px-2 py-2 text-left text-xs font-bold text-slate-600 whitespace-nowrap border-r border-slate-200 last:border-r-0">${f.label}</th>`).join('');
+            // 不可 inline 編輯的特殊欄位（陣列 / 計算值 / system）
+            const NON_EDITABLE = new Set(['committeesRaw', 'coInspectors']);
             const rows = cases.map(c => {
                 const checked = selectedCaseIds.has(c.id);
                 const cells = visibleFields.map(f => {
                     let raw = c[f.key];
                     if (f.key === 'committeesRaw') raw = Array.isArray(c.committees) ? c.committees.join('、') : raw;
-                    if (raw == null || raw === '') return '<td class="px-2 py-1.5 text-xs text-slate-300 border-r border-slate-100 last:border-r-0">–</td>';
-                    const s = Array.isArray(raw) ? raw.join('、') : String(raw);
-                    const disp = s.length > 40 ? s.slice(0, 40) + '…' : s;
-                    return `<td class="px-2 py-1.5 text-xs text-slate-700 border-r border-slate-100 last:border-r-0 whitespace-nowrap" title="${escHTML(s)}">${escHTML(disp)}</td>`;
+                    // 日期格式化：type='date' 的欄位顯示成 YYYY-MM-DD
+                    let display;
+                    if (f.type === 'date' && raw != null && raw !== '') {
+                        display = formatDateYMD(raw) || String(raw);
+                    } else if (raw == null || raw === '') {
+                        display = '';
+                    } else {
+                        display = Array.isArray(raw) ? raw.join('、') : String(raw);
+                    }
+                    const isEmpty = display === '';
+                    const isEditable = !NON_EDITABLE.has(f.key);
+                    if (isEditable) {
+                        // contenteditable inline 編輯：blur 寫回 Firestore
+                        const inputType = f.type === 'date' ? 'date' : (f.type === 'number' ? 'number' : 'text');
+                        const editAttr = `data-case-id="${c.id}" data-key="${f.key}" data-type="${inputType}" data-orig="${escHTML(display)}"`;
+                        return `<td class="px-2 py-1.5 text-xs ${isEmpty ? 'text-slate-300' : 'text-slate-700'} border-r border-slate-100 last:border-r-0 whitespace-nowrap cl-tbl-cell" ${editAttr} onclick="window.clTableEditStart(this)" title="點擊編輯">${isEmpty ? '–' : escHTML(display.length > 30 ? display.slice(0, 30) + '…' : display)}</td>`;
+                    } else {
+                        return `<td class="px-2 py-1.5 text-xs ${isEmpty ? 'text-slate-300' : 'text-slate-700'} border-r border-slate-100 last:border-r-0 whitespace-nowrap" title="${escHTML(display)}">${isEmpty ? '–' : escHTML(display.length > 40 ? display.slice(0, 40) + '…' : display)}</td>`;
+                    }
                 }).join('');
                 return `<tr class="hover:bg-blue-50/50 transition-colors" data-case-id="${c.id}">
                     <td class="px-2 py-1.5 border-r border-slate-100 text-center">
@@ -4138,15 +4401,14 @@
             // 更新「展開/收合」按鈕文字
             const toggleBtn = document.getElementById('btn-toggle-other-owners');
             if (toggleBtn) {
-                toggleBtn.textContent = showOtherOwnersInList ? '收合（回到預設列表）' : '展開全部案件（含已完成）';
+                toggleBtn.textContent = showOtherOwnersInList ? '收合（回到預設列表）' : '展開其他主責案件';
             }
 
             const term = String(searchTerm || '').trim();
 
-            const baseRaw = showOtherOwnersInList
+            const base = showOtherOwnersInList
                 ? casesData
                 : casesData.filter(c => isPrimaryCase(c));
-            const base = showOtherOwnersInList ? baseRaw : baseRaw.filter(c => !isReportCompleted(c));
 
             const filtered = base.filter(c => {
                 const comp = String(c.company || '');
@@ -4164,7 +4426,7 @@
 
             if (filtered.length === 0) {
                 if (!showOtherOwnersInList && !term) {
-                    DOM.casesContainer.innerHTML = '<div class="text-center text-slate-400 py-10">目前無「主責凱宇/蔡凱宇」且未標記完成報告的案件</div>';
+                    DOM.casesContainer.innerHTML = '<div class="text-center text-slate-400 py-10">目前無「主責凱宇/蔡凱宇」的案件</div>';
                 } else {
                     DOM.casesContainer.innerHTML = '<div class="text-center text-slate-400 py-10">目前無案件</div>';
                 }
@@ -4220,7 +4482,10 @@
                 const inspectorColor = isPrimaryOwner(inspector) ? 'bg-cyan-50 text-cyan-700 border border-cyan-100' : 'bg-slate-50 text-slate-600 border border-slate-200';
                 const completedBadge = isReportCompleted(item)
                     ? `<span class="text-[10px] bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded font-black whitespace-nowrap">✓${formatDateYMD(item.reportCompletedAt) || '-'}</span>` : '';
-                // 🆕 訪視 = inspector（主訪視專員），承辦 = owner（轄區承辦），協訪 = coInspectors
+                // 🆕 標籤對映（依實際資料 schema）：
+                //   接案 = owner（Excel「接案人員」，多為蔡凱宇本人）→ 不帶轄區
+                //   訪視 = inspector（就業中心訪視承辦/審閱者，跟轄區相關）→ 帶（轄區）
+                //   協訪 = coInspectors
                 const inspectorDistrictSuffix = district ? `（${district}）` : '';
                 const inspectorBadge = inspector
                     ? `<span class="text-[10px] ${inspectorColor} px-2 py-0.5 rounded font-black whitespace-nowrap">訪視：${inspector}${inspectorDistrictSuffix}</span>`
@@ -4228,7 +4493,7 @@
                 const coInspectorBadge = coInspectors.length
                     ? `<span class="text-[10px] bg-cyan-50 text-cyan-700 border border-cyan-100 px-2 py-0.5 rounded font-bold whitespace-nowrap">協訪：${coInspectors.join('、')}</span>` : '';
                 const ownerBadge = owner
-                    ? `<span class="text-[10px] ${ownerColor} px-2 py-0.5 rounded font-bold whitespace-nowrap">承辦：${owner}</span>` : '';
+                    ? `<span class="text-[10px] ${ownerColor} px-2 py-0.5 rounded font-bold whitespace-nowrap">接案：${owner}</span>` : '';
                 const ddBadge = deadlineBadgeHtml(item);
                 const extraBadges = buildExtraFieldBadges(item);
                 const checked = selectedCaseIds.has(item.id);
@@ -4511,6 +4776,7 @@
             const badges = [];
             for (const f of FULL_CASE_FIELDS) {
                 if (LIST_CORE_KEYS.has(f.key)) continue;
+                if (f.key === 'district') continue; // 🆕 轄區已在「承辦：XX（轄區）」帶到，不重複顯示
                 if (!visible.has(f.key)) continue;
                 const raw = item[f.key];
                 if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) continue;
@@ -11011,6 +11277,37 @@ ${rawDraft}
         let meetingsListenerUnsub = null;
         let reviewsListenersUnsub = [];
 
+        // 🆕 reviews localStorage cache：登入後立刻有資料，背景刷新（解決 N 筆 case × N 個 getDocs 慢的問題）
+        const _REVIEWS_CACHE_KEY = 'kaiyuwork.reviewsCache.v1';
+        function _loadReviewsCache(uid) {
+            try {
+                const raw = localStorage.getItem(_REVIEWS_CACHE_KEY + '.' + uid);
+                if (!raw) return null;
+                const obj = JSON.parse(raw);
+                if (!obj || !Array.isArray(obj.reviews)) return null;
+                return obj;
+            } catch(e) { return null; }
+        }
+        function _saveReviewsCache(uid, reviews) {
+            try {
+                localStorage.setItem(_REVIEWS_CACHE_KEY + '.' + uid, JSON.stringify({
+                    reviews,
+                    savedAt: Date.now(),
+                }));
+            } catch(e) { console.warn('reviews cache 寫入失敗', e); }
+        }
+        function _hydrateReviewsFromCache() {
+            if (!currentUser) return;
+            if (reviewsData.length > 0) return; // 已經有資料就不蓋
+            const cached = _loadReviewsCache(currentUser.uid);
+            if (cached && cached.reviews.length > 0) {
+                reviewsData = cached.reviews;
+                // 立刻 render 各依賴模組（meetings list / 成效驗收 shim 等）
+                try { renderMeetingsStats(); renderItemsTable(); renderMeetingsList(); } catch(e) {}
+                try { if (currentModule === 'verify' && typeof vSyncFromCases === 'function') { vSyncFromCases(); vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList(); } } catch(e) {}
+            }
+        }
+
         // ---------- 監聽 Firestore ----------
         function startMeetingsListeners() {
             if (!currentUser) return;
@@ -11033,9 +11330,14 @@ ${rawDraft}
             if (!currentUser) return;
             if (_rebuildRunning) { _rebuildQueued = true; return; }
             _rebuildRunning = true;
+            // 🆕 同步前先用 cache 補上 reviewsData（避免使用者看到空白）
+            _hydrateReviewsFromCache();
+            // 🆕 背景同步狀態：右下角 badge
+            if (typeof _setAutoSyncStatus === 'function') _setAutoSyncStatus('syncing');
             try {
                 if (!casesData || casesData.length === 0) {
                     reviewsData = [];
+                    _saveReviewsCache(currentUser.uid, []);
                     renderMeetingsStats(); renderItemsTable(); renderMeetingsList();
                     return;
                 }
@@ -11061,10 +11363,20 @@ ${rawDraft}
                     });
                 });
                 reviewsData = all;
+                _saveReviewsCache(uid, all);   // 🆕 寫入 cache
                 renderMeetingsStats();
                 renderItemsTable();
                 renderMeetingsList();
-            } catch(e) { console.warn('reviews 讀取失敗', e); }
+                // 🆕 reviews 變動 → 也刷新成效驗收 shim（不必等使用者切 tab）
+                try { if (typeof vSyncFromCases === 'function') { vSyncFromCases(); if (currentModule === 'verify') { vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList(); } } } catch(e) {}
+                if (typeof _setAutoSyncStatus === 'function') {
+                    _autoSyncLastAt = new Date();
+                    _setAutoSyncStatus('synced');
+                }
+            } catch(e) {
+                console.warn('reviews 讀取失敗', e);
+                if (typeof _setAutoSyncStatus === 'function') _setAutoSyncStatus('error');
+            }
             finally {
                 _rebuildRunning = false;
                 if (_rebuildQueued) { _rebuildQueued = false; rebuildReviewsAndRender(); }
@@ -11982,7 +12294,10 @@ ${rawDraft}
         (function hookAuthForMeetings(){
             // 監聽 currentUser 變化（沿用既有 onAuthStateChanged 的 currentUser 變數）
             const iv = setInterval(() => {
-                if (currentUser && !meetingsListenerUnsub) { startMeetingsListeners(); }
+                if (currentUser && !meetingsListenerUnsub) {
+                    _hydrateReviewsFromCache();   // 🆕 立刻用 cache，使用者不用等
+                    startMeetingsListeners();
+                }
                 if (!currentUser && meetingsListenerUnsub) { stopMeetingsListeners(); meetingsData = []; reviewsData = []; }
             }, 1500);
         })();
@@ -12351,16 +12666,26 @@ ${rawDraft}
                     '審查會':'bg-amber-100 text-amber-800',
                     '宣導':'bg-rose-100 text-rose-800'
                 }[s.type] || 'bg-slate-100 text-slate-700';
-                const srcTag = s.source === 'manual' ? `<button class="text-xs text-red-500 hover:text-red-700" onclick="window.deleteManualSchedule('${s.id}')"><i class="fa-solid fa-trash"></i></button>` : `<span class="text-xs text-slate-300">(自動)</span>`;
+                const srcTag = s.source === 'manual'
+                    ? `<button class="text-xs text-blue-500 hover:text-blue-700 mr-2" onclick="window.editManualSchedule('${s.id}')" title="編輯"><i class="fa-solid fa-pen"></i></button>
+                       <button class="text-xs text-red-500 hover:text-red-700" onclick="window.deleteManualSchedule('${s.id}')" title="刪除"><i class="fa-solid fa-trash"></i></button>`
+                    : `<span class="text-xs text-slate-300">(自動)</span>`;
+                // 附加資訊（檔案/錄音/連結/心得）的小提示 chip
+                const extras = [];
+                if (Array.isArray(s.attachments) && s.attachments.length) extras.push(`<span class="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 px-1 rounded">📎${s.attachments.length}</span>`);
+                if (s.audio) extras.push(`<span class="text-[10px] text-purple-600 bg-purple-50 border border-purple-200 px-1 rounded">🎤</span>`);
+                if (s.url) extras.push(`<span class="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 rounded">🔗</span>`);
+                if (s.reflection) extras.push(`<span class="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1 rounded">📝</span>`);
+                const extrasHtml = extras.length ? `<span class="ml-1">${extras.join(' ')}</span>` : '';
                 return `<tr class="border-b border-slate-100 hover:bg-slate-50">
                     <td class="p-2 text-xs whitespace-nowrap">${s.date || '-'}</td>
                     <td class="p-2"><span class="text-xs px-2 py-1 rounded ${badge} font-bold">${s.type}</span></td>
                     <td class="p-2 text-xs">${s.region || ''}</td>
                     <td class="p-2 text-xs">${s.caseName || ''}</td>
                     <td class="p-2 text-xs">${s.location || ''}</td>
-                    <td class="p-2 text-xs">${s.note || ''}</td>
+                    <td class="p-2 text-xs">${s.note || ''}${extrasHtml}</td>
                     <td class="p-2 text-xs text-right">${s.hours || ''}</td>
-                    <td class="p-2 text-right">${srcTag}</td>
+                    <td class="p-2 text-right whitespace-nowrap">${srcTag}</td>
                 </tr>`;
             }).join('');
             div.innerHTML = `<table class="w-full text-sm border-collapse">
@@ -12405,24 +12730,168 @@ ${rawDraft}
             } catch(e) { alert('刪除失敗：'+e.message); }
         };
 
-        // 手動新增
-        document.getElementById('sch-btn-add')?.addEventListener('click', async () => {
-            const date = prompt('日期 (YYYY-MM-DD)：', new Date().toISOString().slice(0,10));
-            if (!date) return;
-            const type = prompt('類型 (研習/宣導/訪視/成效/審查會)：', '研習');
-            if (!type) return;
-            const location = prompt('地點：', '');
-            const note = prompt('備註/主題：', '');
-            const hours = prompt('時數：', '');
-            try {
-                const { collection, addDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                await addDoc(collection(db, 'users', currentUser.uid, 'schedules'), {
-                    date, type, location: location || '', note: note || '', hours: hours || '',
-                    region: '', caseName: '', createdAt: new Date().toISOString()
-                });
-                showToast('已新增');
-            } catch(e) { alert('新增失敗：'+e.message); }
+        // 手動新增/編輯：modal 對話框（取代原 prompt 連續詢問）
+        let _schModalAttachments = [];   // {name, base64, size, type}
+        let _schModalAudio = null;       // {name, base64, size, type}
+
+        function _schFileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = reject;
+                r.readAsDataURL(file);
+            });
+        }
+
+        function _schRenderAttachments() {
+            const div = document.getElementById('sch-modal-files-list');
+            if (!div) return;
+            if (_schModalAttachments.length === 0) { div.innerHTML = ''; return; }
+            div.innerHTML = _schModalAttachments.map((a, idx) => `
+                <div class="flex items-center justify-between gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                    <span class="flex-1 truncate"><i class="fa-solid fa-file mr-1 text-blue-400"></i>${a.name} <span class="text-slate-400 text-xs">(${(a.size/1024).toFixed(0)}KB)</span></span>
+                    <button onclick="window._schRemoveAttach(${idx})" class="text-red-400 hover:text-red-600 px-2"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function _schRenderAudio() {
+            const div = document.getElementById('sch-modal-audio-info');
+            if (!div) return;
+            if (!_schModalAudio) { div.innerHTML = ''; return; }
+            div.innerHTML = `
+                <div class="flex items-center justify-between gap-2 p-2 bg-purple-50 border border-purple-200 rounded-lg text-sm flex-wrap">
+                    <span class="flex-1 min-w-0 truncate"><i class="fa-solid fa-microphone mr-1 text-purple-400"></i>${_schModalAudio.name} <span class="text-slate-400 text-xs">(${(_schModalAudio.size/1024).toFixed(0)}KB)</span></span>
+                    <audio controls src="${_schModalAudio.base64}" class="h-8" style="max-width:220px"></audio>
+                    <button onclick="window._schRemoveAudio()" class="text-red-400 hover:text-red-600 px-2"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            `;
+        }
+
+        window._schRemoveAttach = function(idx) {
+            _schModalAttachments.splice(idx, 1);
+            _schRenderAttachments();
+        };
+        window._schRemoveAudio = function() {
+            _schModalAudio = null;
+            _schRenderAudio();
+        };
+
+        window.openSchModal = function(scheduleId) {
+            const modal = document.getElementById('sch-modal');
+            if (!modal) return;
+            _schModalAttachments = [];
+            _schModalAudio = null;
+            const titleEl = document.getElementById('sch-modal-title');
+            if (scheduleId) {
+                const s = manualSchedules.find(x => x.id === scheduleId);
+                if (!s) return;
+                if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-graduation-cap text-amber-500 mr-2"></i>編輯研習/宣導';
+                document.getElementById('sch-modal-id').value = s._docId || '';
+                document.getElementById('sch-modal-date').value = s.date || '';
+                document.getElementById('sch-modal-type').value = s.type || '研習';
+                document.getElementById('sch-modal-note').value = s.note || '';
+                document.getElementById('sch-modal-location').value = s.location || '';
+                document.getElementById('sch-modal-hours').value = s.hours || '';
+                document.getElementById('sch-modal-url').value = s.url || '';
+                document.getElementById('sch-modal-reflection').value = s.reflection || '';
+                _schModalAttachments = Array.isArray(s.attachments) ? s.attachments.map(a => ({...a})) : [];
+                _schModalAudio = s.audio ? {...s.audio} : null;
+            } else {
+                if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-graduation-cap text-amber-500 mr-2"></i>新增研習/宣導';
+                document.getElementById('sch-modal-id').value = '';
+                document.getElementById('sch-modal-date').value = new Date().toISOString().slice(0,10);
+                document.getElementById('sch-modal-type').value = '研習';
+                document.getElementById('sch-modal-note').value = '';
+                document.getElementById('sch-modal-location').value = '';
+                document.getElementById('sch-modal-hours').value = '';
+                document.getElementById('sch-modal-url').value = '';
+                document.getElementById('sch-modal-reflection').value = '';
+            }
+            _schRenderAttachments();
+            _schRenderAudio();
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        };
+
+        window.closeSchModal = function() {
+            const modal = document.getElementById('sch-modal');
+            if (modal) { modal.classList.add('hidden'); modal.style.display = 'none'; }
+        };
+
+        window.editManualSchedule = function(sid) { window.openSchModal(sid); };
+
+        // 點背景關閉（不點面板）
+        document.getElementById('sch-modal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'sch-modal') window.closeSchModal();
         });
+
+        // 課程資料檔案上傳（多檔，限 700KB / 檔）
+        document.getElementById('sch-modal-files')?.addEventListener('change', async (e) => {
+            const files = [...e.target.files];
+            for (const f of files) {
+                if (f.size > 700 * 1024) {
+                    alert(`「${f.name}」超過 700KB（${(f.size/1024).toFixed(0)}KB），請改放 Google Drive 後貼下方連結欄位`);
+                    continue;
+                }
+                try {
+                    const base64 = await _schFileToBase64(f);
+                    _schModalAttachments.push({ name: f.name, base64, size: f.size, type: f.type });
+                } catch(err) { alert(`「${f.name}」讀取失敗：${err.message}`); }
+            }
+            _schRenderAttachments();
+            e.target.value = '';
+        });
+
+        // 上課錄音上傳（單檔，限 800KB）
+        document.getElementById('sch-modal-audio')?.addEventListener('change', async (e) => {
+            const f = e.target.files[0];
+            if (!f) return;
+            if (f.size > 800 * 1024) {
+                alert(`錄音檔超過 800KB（${(f.size/1024).toFixed(0)}KB）。請改放 Google Drive 並貼雲端連結`);
+                e.target.value = '';
+                return;
+            }
+            try {
+                const base64 = await _schFileToBase64(f);
+                _schModalAudio = { name: f.name, base64, size: f.size, type: f.type };
+            } catch(err) { alert(`錄音檔讀取失敗：${err.message}`); }
+            _schRenderAudio();
+            e.target.value = '';
+        });
+
+        window.saveSchModal = async function() {
+            const date = document.getElementById('sch-modal-date').value;
+            const type = document.getElementById('sch-modal-type').value;
+            if (!date) { alert('請選擇日期'); return; }
+            if (!type) { alert('請選擇類型'); return; }
+            const payload = {
+                date, type,
+                location: document.getElementById('sch-modal-location').value || '',
+                note: document.getElementById('sch-modal-note').value || '',
+                hours: document.getElementById('sch-modal-hours').value || '',
+                url: document.getElementById('sch-modal-url').value || '',
+                reflection: document.getElementById('sch-modal-reflection').value || '',
+                attachments: _schModalAttachments,
+                audio: _schModalAudio,
+                region: '', caseName: '',
+            };
+            const docId = document.getElementById('sch-modal-id').value;
+            try {
+                const { collection, addDoc, doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                if (docId) {
+                    await updateDoc(doc(db, 'users', currentUser.uid, 'schedules', docId), payload);
+                    showToast('已更新');
+                } else {
+                    payload.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, 'users', currentUser.uid, 'schedules'), payload);
+                    showToast('已新增');
+                }
+                window.closeSchModal();
+            } catch(e) { alert('儲存失敗：' + e.message); }
+        };
+
+        document.getElementById('sch-btn-add')?.addEventListener('click', () => window.openSchModal());
 
         ['sch-filter-month','sch-filter-type','sch-filter-kw'].forEach(id => {
             document.getElementById(id)?.addEventListener('input', () => { renderSchStats(); renderSchTable(); });
@@ -13302,7 +13771,7 @@ ${rawDraft}
             { key:'workLocation',        zh:['實際工作地點','工作地點'],        group:'job',  label:'工作地點',   type:'text', listDefault:false },
 
             // --- 人員 / 審閱 ---
-            { key:'inspector',           zh:['訪視專員','訪視人員','訪視承辦','承辦'], group:'personnel', label:'訪視專員', type:'text', listDefault:true },
+            { key:'inspector',           zh:['訪視專員','訪視人員','訪視承辦','承辦'], group:'personnel', label:'承辦', type:'text', listDefault:true },
             { key:'coInspectors',        zh:['協訪專員','協訪人員','協同訪視'],   group:'personnel', label:'協訪專員',   type:'text', listDefault:false },
             { key:'owner',               zh:['接案人員','接案     人員','轄區承辦'], group:'personnel', label:'接案人員', type:'text', listDefault:true  },
             { key:'committeesRaw',       zh:['訪視委員','委員'],                group:'personnel', label:'訪視委員', type:'text', listDefault:false },
@@ -13879,7 +14348,7 @@ ${rawDraft}
             if (isVerify) {
                 const dp = document.getElementById('v-date-picker');
                 if (dp && !dp.value) dp.value = new Date().toISOString().slice(0, 10);
-                vRenderDashboard(); vPopulateYearFilter(); vRenderCaseList();
+                vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList();
             }
         }
 
@@ -13967,7 +14436,7 @@ ${rawDraft}
                     });
                     saveVerifyData();
                     statusEl.textContent = `身障清單已更新${year ? `（${year}）` : ''}，共 ${verifyData.cases.filter(c=>c.category==='身障'&&c.year===year).length} 筆`;
-                    if (currentModule === 'verify') { vRenderDashboard(); vPopulateYearFilter(); vRenderCaseList(); }
+                    if (currentModule === 'verify') { vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList(); }
                     showToast('身障成效清單匯入完成');
                 } catch(err) { statusEl.textContent = '匯入失敗：' + err.message; }
             };
@@ -14061,7 +14530,7 @@ ${rawDraft}
                     updatedKeys.forEach(uk => saveUnitItems(uk));
 
                     statusEl.textContent = `中高勞通清單已更新${year ? `（${year}）` : ''}，共 ${verifyData.cases.filter(c=>c.category==='中高勞通'&&c.year===year).length} 筆`;
-                    if (currentModule === 'verify') { vRenderDashboard(); vPopulateYearFilter(); vRenderCaseList(); }
+                    if (currentModule === 'verify') { vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList(); }
                     showToast('中高勞通成效清單匯入完成');
                 } catch(err) { statusEl.textContent = '匯入失敗：' + err.message; }
             };
@@ -14078,12 +14547,21 @@ ${rawDraft}
             sel.innerHTML = '<option value="">全部年度</option>' + years.map(y => `<option value="${y}" ${cur===y?'selected':''}>${y}</option>`).join('');
         }
 
+        function vPopulateDistrictFilter() {
+            const sel = document.getElementById('v-filter-district');
+            if (!sel) return;
+            const districts = [...new Set(verifyData.cases.map(c => c.district).filter(Boolean))].sort();
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">全部轄區</option>' + districts.map(d => `<option value="${d}" ${cur===d?'selected':''}>${d}</option>`).join('');
+        }
+        window.vPopulateDistrictFilter = vPopulateDistrictFilter;
+
         // ---- 儀表板 ----
         function vRenderDashboard() {
             const cases = verifyData.cases;
-            ['pending','inProgress','closed'].forEach(status => {
+            ['pending','inProgress','closed','abandoned'].forEach(status => {
                 const sc = cases.filter(c => c.status === status);
-                const idMap = { pending:'v-count-pending', inProgress:'v-count-inprogress', closed:'v-count-closed' };
+                const idMap = { pending:'v-count-pending', inProgress:'v-count-inprogress', closed:'v-count-closed', abandoned:'v-count-abandoned' };
                 const el = document.getElementById(idMap[status]);
                 if (el) el.textContent = sc.length;
 
@@ -14094,7 +14572,7 @@ ${rawDraft}
                 const elderArr = sc.filter(c => c.category === '中高勞通');
                 const elderUnits = new Set(elderArr.map(c => getUnitKey(c))).size;
                 const elderPpl   = elderArr.length;
-                const colorMap = { pending:'text-slate-500', inProgress:'text-blue-600', closed:'text-emerald-600' };
+                const colorMap = { pending:'text-slate-500', inProgress:'text-blue-600', closed:'text-emerald-600', abandoned:'text-rose-600' };
                 const col = colorMap[status];
                 let html = '';
                 if (disCnt > 0)   html += `<div class="flex items-center justify-between text-xs ${col}"><span class="text-slate-400"><i class="fa-solid fa-wheelchair mr-1 text-purple-400"></i>身障</span><span class="font-bold">${disCnt} 人</span></div>`;
@@ -14153,7 +14631,7 @@ ${rawDraft}
             ids.forEach(id => vDeleteCaseFromDB(id));
             verifyData.cases = verifyData.cases.filter(c => !ids.includes(c.id));
             saveVerifyData();
-            vSelectedIds.clear(); vUpdateBatchBar(); vRenderDashboard(); vPopulateYearFilter(); vRenderCaseList();
+            vSelectedIds.clear(); vUpdateBatchBar(); vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList();
             showToast(`已刪除 ${ids.length} 筆案件`);
         };
 
@@ -14163,17 +14641,23 @@ ${rawDraft}
         function vRenderCaseList() {
             const container = document.getElementById('v-case-list');
             if (!container) return;
-            const yearFilter   = (document.getElementById('v-filter-year')?.value || '');
-            const dateVal      = document.getElementById('v-date-picker').value;
-            const statusFilter = document.getElementById('v-filter-status').value;
-            const catFilter    = document.getElementById('v-filter-cat').value;
-            const searchTerm   = (document.getElementById('v-search').value || '').trim().toLowerCase();
+            const yearFilter     = (document.getElementById('v-filter-year')?.value || '');
+            const dateVal        = document.getElementById('v-date-picker').value;
+            const statusFilter   = document.getElementById('v-filter-status').value;
+            const catFilter      = document.getElementById('v-filter-cat').value;
+            const districtFilter = (document.getElementById('v-filter-district')?.value || '');
+            const qualityFilter  = (document.getElementById('v-filter-quality')?.value || '');
+            const searchTerm     = (document.getElementById('v-search').value || '').trim().toLowerCase();
 
             let cases = [...verifyData.cases];
-            if (yearFilter)   cases = cases.filter(c => c.year === yearFilter);
-            if (dateVal)      cases = cases.filter(c => c.verificationDate === dateVal);
-            if (statusFilter) cases = cases.filter(c => c.status === statusFilter);
-            if (catFilter)    cases = cases.filter(c => c.category === catFilter);
+            if (yearFilter)     cases = cases.filter(c => c.year === yearFilter);
+            if (dateVal)        cases = cases.filter(c => c.verificationDate === dateVal);
+            if (statusFilter)   cases = cases.filter(c => c.status === statusFilter);
+            if (catFilter)      cases = cases.filter(c => c.category === catFilter);
+            if (districtFilter) cases = cases.filter(c => (c.district || '') === districtFilter);
+            if (qualityFilter === 'noReview') cases = cases.filter(c => c.noReview);
+            if (qualityFilter === 'noDate')   cases = cases.filter(c => !c.verificationDate);
+            if (qualityFilter === 'noAddr')   cases = cases.filter(c => !(c.address || '').trim());
             if (searchTerm)   cases = cases.filter(c =>
                 (c.clientName || '').toLowerCase().includes(searchTerm) ||
                 (c.unit || '').toLowerCase().includes(searchTerm) ||
@@ -14190,8 +14674,8 @@ ${rawDraft}
                 return;
             }
 
-            const statusLabel = { pending: '未驗收', inProgress: '進行中', closed: '結案' };
-            const statusColor = { pending: 'bg-slate-100 text-slate-600', inProgress: 'bg-blue-100 text-blue-700', closed: 'bg-emerald-100 text-emerald-700' };
+            const statusLabel = { pending: '未驗收', inProgress: '進行中', closed: '結案', abandoned: '🚫 放棄' };
+            const statusColor = { pending: 'bg-slate-100 text-slate-600', inProgress: 'bg-blue-100 text-blue-700', closed: 'bg-emerald-100 text-emerald-700', abandoned: 'bg-rose-100 text-rose-700' };
 
             const disCases   = cases.filter(c => c.category === '身障');
             const elderCases = cases.filter(c => c.category === '中高勞通');
@@ -14225,17 +14709,40 @@ ${rawDraft}
                                     ${c.noReview ? `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200" title="案件列表已建檔，但審查會議尚未匯入對應品項"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>無審查資料</span>` : ''}
                                     ${c.year ? `<span class="text-xs text-slate-400 font-bold">${c.year}</span>` : ''}
                                     ${c.caseNo ? `<span class="text-xs text-slate-400">${c.caseNo}</span>` : ''}
+                                    ${_apptMissingBadgeHtml(c)}
                                 </div>
                                 <div class="font-bold text-slate-800 text-sm mb-0.5">${c.clientName || '（無姓名）'}</div>
-                                <div class="text-xs text-slate-500 space-y-0.5">
+                                <div class="text-xs text-slate-500 space-y-1">
                                     ${c.unit ? `<div><i class="fa-solid fa-building text-xs mr-1 text-slate-300"></i>${c.unit}</div>` : ''}
                                     ${c.contactPerson ? `<div><i class="fa-solid fa-user text-xs mr-1 text-slate-300"></i>聯繫：${c.contactPerson}${c.unitPhone ? `&ensp;<i class="fa-solid fa-phone text-xs mr-1 text-slate-300"></i>${c.unitPhone}` : ''}</div>` : (c.unitPhone ? `<div><i class="fa-solid fa-phone text-xs mr-1 text-slate-300"></i>${c.unitPhone}</div>` : '')}
-                                    ${c.verificationDate ? `<div><i class="fa-solid fa-calendar-check text-xs mr-1 text-slate-300"></i>驗收：${c.verificationDate}</div>` : ''}
+                                    <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-calendar-check text-xs text-slate-300 shrink-0"></i>
+                                        <span class="text-slate-400 shrink-0">驗收日</span>
+                                        <input type="date" value="${c.verificationDate || ''}"
+                                            onchange="event.stopPropagation(); window.vInlineSaveVerificationDate('${c.id}', this.value)"
+                                            onclick="event.stopPropagation()"
+                                            class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white focus:ring-1 focus:ring-purple-300">
+                                    </div>
+                                    <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-location-dot text-xs text-slate-300 shrink-0"></i>
+                                        <input type="text" placeholder="地址..." value="${(c.address || '').replace(/"/g,'&quot;')}"
+                                            oninput="window.vInlineSaveAddress('${c.id}', this.value)"
+                                            onclick="event.stopPropagation()"
+                                            class="flex-1 min-w-0 text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-purple-300">
+                                    </div>
                                 </div>
                                 ${impChips.length > 0 ? `<div class="mt-1.5 flex flex-wrap gap-1">${impChips.slice(0,4).map(ch => `<span class="text-xs bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded text-purple-700">${ch}</span>`).join('')}</div>` : ''}
                             </div>
                             <div class="flex flex-col items-end gap-1 shrink-0 ml-1">
                                 <i class="fa-solid fa-chevron-right text-slate-300 text-xs cursor-pointer" onclick="window.vOpenCase('${c.id}')"></i>
+                                <button onclick="event.stopPropagation(); window.vCopyAppointmentMsgFor('${c.id}')" title="複製預約訊息（給 LINE 用）"
+                                    class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded transition-colors" style="min-height:24px;">
+                                    <i class="fa-solid fa-comment-dots"></i>
+                                </button>
+                                <button onclick="event.stopPropagation(); window.vSendAppointmentSMSFor('${c.id}')" title="傳預約簡訊"
+                                    class="text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-200 px-1.5 py-0.5 rounded transition-colors" style="min-height:24px;">
+                                    <i class="fa-solid fa-message"></i>
+                                </button>
                                 <button onclick="event.stopPropagation(); window.vExportCaseExcel('${c.id}')" title="下載 Excel"
                                     class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded transition-colors" style="min-height:24px;">
                                     <i class="fa-solid fa-file-excel"></i>
@@ -14277,15 +14784,41 @@ ${rawDraft}
                                     ${group.cases.every(c => c.noReview) ? `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200" title="案件列表已建檔，但審查會議尚未匯入本單位品項"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>無審查資料</span>` : ''}
                                     ${group.year ? `<span class="text-xs text-slate-500 font-bold">${group.year}</span>` : ''}
                                     ${group.caseNo ? `<span class="text-xs text-slate-400">${group.caseNo}</span>` : ''}
+                                    ${_apptMissingBadgeHtml(group.cases[0])}
                                 </div>
                                 <div class="font-bold text-slate-800 text-sm">${group.unit || '（無單位）'}</div>
-                                <div class="text-xs text-slate-500 mt-0.5 space-y-0.5">
+                                <div class="text-xs text-slate-500 mt-0.5 space-y-1">
                                     ${group.contactPerson ? `<div><i class="fa-solid fa-user text-xs mr-1 text-slate-300"></i>聯繫：${group.contactPerson}${group.unitPhone ? `&ensp;<i class="fa-solid fa-phone text-xs mr-1 text-slate-300"></i>${group.unitPhone}` : ''}</div>` : (group.unitPhone ? `<div><i class="fa-solid fa-phone text-xs mr-1 text-slate-300"></i>${group.unitPhone}</div>` : '')}
-                                    ${verDates.length > 0 ? `<div><i class="fa-solid fa-calendar-check text-xs mr-1 text-slate-300"></i>驗收：${verDates.join('、')}</div>` : ''}
+                                    <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-calendar-check text-xs text-slate-300 shrink-0"></i>
+                                        <span class="text-slate-400 shrink-0">驗收日</span>
+                                        <input type="date" value="${group.cases[0]?.verificationDate || ''}"
+                                            onchange="event.stopPropagation(); window.vInlineSaveUnitVerificationDate('${key}', this.value)"
+                                            onclick="event.stopPropagation()"
+                                            class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white focus:ring-1 focus:ring-amber-300">
+                                        <span class="text-slate-300 text-[10px]">（套全員 ${group.cases.length} 人）</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-location-dot text-xs text-slate-300 shrink-0"></i>
+                                        <input type="text" placeholder="地址..." value="${(group.cases[0]?.address || '').replace(/"/g,'&quot;')}"
+                                            oninput="window.vInlineSaveUnitAddress('${key}', this.value)"
+                                            onclick="event.stopPropagation()"
+                                            class="flex-1 min-w-0 text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-amber-300">
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex flex-col items-end gap-1 shrink-0">
                                 <span class="text-xs text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded font-bold">${group.cases.length} 人</span>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="event.stopPropagation(); window.vCopyAppointmentMsgFor('${repCaseId}')" title="複製預約訊息（給 LINE 用）"
+                                        class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded transition-colors">
+                                        <i class="fa-solid fa-comment-dots"></i>
+                                    </button>
+                                    <button onclick="event.stopPropagation(); window.vSendAppointmentSMSFor('${repCaseId}')" title="傳預約簡訊"
+                                        class="text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-200 px-1.5 py-0.5 rounded transition-colors">
+                                        <i class="fa-solid fa-message"></i>
+                                    </button>
+                                </div>
                                 <button onclick="event.stopPropagation(); window.vOpenCase('${repCaseId}')" class="text-xs bg-purple-500 hover:bg-purple-600 text-white px-2 py-0.5 rounded font-bold transition-colors"><i class="fa-solid fa-pen-to-square mr-0.5"></i>紀錄成效</button>
                                 <label class="v-group-upload text-xs bg-indigo-500 hover:bg-indigo-600 text-white px-2 py-0.5 rounded font-bold cursor-pointer transition-colors whitespace-nowrap" onclick="event.stopPropagation()" title="上傳本單位結案報告（一份套用全員）">
                                     <i class="fa-solid fa-upload mr-0.5"></i>結案報告
@@ -14297,7 +14830,7 @@ ${rawDraft}
                                 <button onclick="event.stopPropagation(); window.vExportUnitExcel('${key}')" class="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-0.5 rounded font-bold transition-colors"><i class="fa-solid fa-file-excel mr-0.5"></i>匯出</button>
                             </div>
                         </div>
-                        <div class="divide-y divide-slate-100">
+                        <div class="hidden">
                             ${group.cases.map(c => {
                                 const isSelected = vSelectedIds.has(c.id);
                                 const impChips = c.items.flatMap(it => (it.improvements || []).map(imp => imp.type + (imp.percentage ? ' ' + imp.percentage : '')));
@@ -14309,10 +14842,19 @@ ${rawDraft}
                                             <span class="font-medium text-slate-700 text-sm">${c.clientName || '（無姓名）'}</span>
                                             <span class="text-xs px-1.5 py-0.5 rounded ${statusColor[c.status] || ''}">${statusLabel[c.status] || c.status}</span>
                                             ${c.verificationDate ? `<span class="text-xs text-slate-400">${c.verificationDate}</span>` : ''}
+                                            ${_apptMissingBadgeHtml(c)}
                                         </div>
                                         ${impChips.length > 0 ? `<div class="flex flex-wrap gap-1 mt-0.5">${impChips.slice(0,3).map(ch => `<span class="text-xs bg-amber-50 border border-amber-200 px-1 py-0.5 rounded text-amber-700">${ch}</span>`).join('')}</div>` : ''}
                                     </div>
                                     <div class="flex items-center gap-1 shrink-0">
+                                        <button onclick="event.stopPropagation(); window.vCopyAppointmentMsgFor('${c.id}')" title="複製預約訊息"
+                                            class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded transition-colors">
+                                            <i class="fa-solid fa-comment-dots"></i>
+                                        </button>
+                                        <button onclick="event.stopPropagation(); window.vSendAppointmentSMSFor('${c.id}')" title="傳預約簡訊"
+                                            class="text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-200 px-1.5 py-0.5 rounded transition-colors">
+                                            <i class="fa-solid fa-message"></i>
+                                        </button>
                                         <button onclick="event.stopPropagation(); window.vExportCaseExcel('${c.id}')" title="下載 Excel"
                                             class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded transition-colors">
                                             <i class="fa-solid fa-file-excel"></i>
@@ -14330,11 +14872,216 @@ ${rawDraft}
         }
         window.vRenderCaseList = vRenderCaseList;
 
-        ['v-date-picker','v-filter-status','v-filter-cat','v-filter-year'].forEach(id => {
+        ['v-date-picker','v-filter-status','v-filter-cat','v-filter-year','v-filter-district','v-filter-quality'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('change', vRenderCaseList);
         });
         document.getElementById('v-search').addEventListener('input', vRenderCaseList);
+
+        // ---- 預約訊息（LINE / 簡訊）helper ----
+        const _APPT_WEEKDAY_ZH = ['日','一','二','三','四','五','六'];
+
+        function _apptROCYear(c) {
+            // 優先：訪視日 visitDate → 西元-1911
+            const m = /^(\d{4})-\d{2}-\d{2}$/.exec(String(c?.visitDate || ''));
+            if (m) return String(parseInt(m[1], 10) - 1911);
+            // fallback：c.year（已存的民國）
+            if (c?.year != null && /^\d{2,3}$/.test(String(c.year))) return String(c.year);
+            // 再 fallback：verificationDate
+            const m2 = /^(\d{4})-\d{2}-\d{2}$/.exec(String(c?.verificationDate || ''));
+            if (m2) return String(parseInt(m2[1], 10) - 1911);
+            return '';
+        }
+
+        function _apptCheckMissing(c) {
+            const missing = [];
+            if (!c?.address) missing.push('地址');
+            if (!c?.verificationDate) missing.push('成效驗收日');
+            if (!c?.visitDate) missing.push('訪視日');
+            return missing;
+        }
+
+        function _apptMissingBadgeHtml(c) {
+            const missing = _apptCheckMissing(c);
+            if (!missing.length) return '';
+            return `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200" title="預約訊息缺：${missing.join('、')}（請至基本資料補）"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>缺${missing.join('、')}</span>`;
+        }
+
+        function _apptFormatDateZh(dateStr) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+            if (!m) return '';
+            const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+            const w = isNaN(d.getTime()) ? '' : _APPT_WEEKDAY_ZH[d.getDay()];
+            return `${parseInt(m[2],10)}/${parseInt(m[3],10)}${w ? `（${w}）` : ''}`;
+        }
+
+        function _apptFormatPeriod(hhmm) {
+            if (!hhmm) return '上午時段';
+            const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm));
+            if (!m) return '上午時段';
+            const hh = parseInt(m[1], 10);
+            return `${hh < 12 ? '上午' : '下午'} ${hhmm}`;
+        }
+
+        async function _apptGetVisitTime(c) {
+            const dateStr = c?.verificationDate || '';
+            if (!dateStr) return '';
+            try {
+                if ((!scheduleData[dateStr] || !scheduleData[dateStr].entries) && typeof loadScheduleFromFirebase === 'function') {
+                    await loadScheduleFromFirebase(dateStr);
+                }
+            } catch(e) { /* 沒載到就用空字串 */ }
+            const entry = scheduleData?.[dateStr]?.entries?.[schedKeyForCase(c)];
+            return entry?.visitTime || '';
+        }
+
+        async function vBuildAppointmentMsg(caseId) {
+            const c = verifyData.cases.find(x => x.id === caseId);
+            if (!c) return '';
+            const yr   = _apptROCYear(c);
+            const date = _apptFormatDateZh(c.verificationDate);
+            const time = _apptFormatPeriod(await _apptGetVisitTime(c));
+            const addr = c.address || '（請補地址）';
+            const dt   = date ? `${date} ${time}` : `（請設定成效驗收日）${time}`;
+            // 開頭稱呼：中高勞通 → 單位；身障 → 個案姓名（依性別加 先生/小姐）；都沒有 → 直接「您好」
+            const salutation = c.category === '中高勞通'
+                ? (c.unit || c.clientName || '')
+                : (c.clientName || c.unit || '');
+            let honorific = '';
+            if (c.category === '身障' && c.clientName) {
+                if (c.gender === '男') honorific = ' 先生';
+                else if (c.gender === '女') honorific = ' 小姐';
+            }
+            const greeting = salutation ? `${salutation}${honorific} 您好，` : `您好，`;
+            return [
+                `${greeting}我是職務再設計專員蔡凱宇😊`,
+                `您於${yr || '___'}年有申請職務再設計補助，這邊想與您預約 ${dt}，前往進行成效驗收，不知道您是否方便呢？`,
+                ``,
+                `當天只需簡單了解使用情形，並拍攝使用狀況照片即可，不會占用您太多時間。`,
+                ``,
+                `另外也想跟您確認一下地址是否為：`,
+                addr,
+                ``,
+                `再麻煩您回覆，謝謝您🙏`,
+            ].join('\n');
+        }
+
+        window.vRefreshAppointmentMsg = async function(caseId) {
+            const ta = document.getElementById('v-appt-msg');
+            if (!ta) return;
+            ta.value = await vBuildAppointmentMsg(caseId);
+        };
+
+        window.vCopyAppointmentMsg = async function() {
+            const ta = document.getElementById('v-appt-msg');
+            if (!ta) return;
+            const text = ta.value;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('已複製訊息（可貼到 LINE）');
+            } catch(e) {
+                ta.focus(); ta.select();
+                try { document.execCommand('copy'); showToast('已複製訊息'); }
+                catch(_) { showToast('複製失敗，請手動選取複製'); }
+            }
+        };
+
+        window.vSendAppointmentSMS = function(caseId) {
+            const c = verifyData.cases.find(x => x.id === caseId);
+            const ta = document.getElementById('v-appt-msg');
+            const body = ta ? ta.value : '';
+            const phone = String(c?.clientPhone || '').replace(/[^\d+]/g, '');
+            window.location.href = `sms:${phone}?body=${encodeURIComponent(body)}`;
+        };
+
+        // ---- 清單列直接複製 / 傳簡訊（不用點進個案）----
+        window.vCopyAppointmentMsgFor = async function(caseId) {
+            const c = verifyData.cases.find(x => x.id === caseId);
+            if (!c) return;
+            const missing = _apptCheckMissing(c);
+            if (missing.length) {
+                showToast(`⚠ 請先補：${missing.join('、')}`);
+                return;
+            }
+            const text = await vBuildAppointmentMsg(caseId);
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast(`已複製 ${c.clientName||''} 的預約訊息（可貼到 LINE）`);
+            } catch(e) {
+                const ta = document.createElement('textarea');
+                ta.value = text; document.body.appendChild(ta);
+                ta.select(); document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('已複製預約訊息');
+            }
+        };
+
+        window.vSendAppointmentSMSFor = async function(caseId) {
+            const c = verifyData.cases.find(x => x.id === caseId);
+            if (!c) return;
+            const missing = _apptCheckMissing(c);
+            if (missing.length) {
+                showToast(`⚠ 請先補：${missing.join('、')}`);
+                return;
+            }
+            const text = await vBuildAppointmentMsg(caseId);
+            const phone = String(c.clientPhone || '').replace(/[^\d+]/g, '');
+            window.location.href = `sms:${phone}?body=${encodeURIComponent(text)}`;
+        };
+
+        // ---- 清單列直接編輯 地址 / 成效驗收日（不用點進個案） ----
+        const _vInlineAddrTimers = {};
+
+        function _vUnitKeyOf(c) { return (c.year || '') + '_' + (c.caseNo || c.unit || ''); }
+
+        window.vInlineSaveAddress = function(caseId, value) {
+            clearTimeout(_vInlineAddrTimers[caseId]);
+            _vInlineAddrTimers[caseId] = setTimeout(() => {
+                const c = verifyData.cases.find(x => x.id === caseId);
+                if (!c) return;
+                c.address = value;
+                saveVerifyData();
+                if (typeof _scheduleAutoCloudSync === 'function') _scheduleAutoCloudSync(caseId);
+            }, 800);
+        };
+
+        window.vInlineSaveVerificationDate = function(caseId, value) {
+            const c = verifyData.cases.find(x => x.id === caseId);
+            if (!c) return;
+            c.verificationDate = value;
+            if (value && c.status === 'pending') c.status = 'inProgress';
+            saveVerifyData();
+            if (typeof _scheduleAutoCloudSync === 'function') _scheduleAutoCloudSync(caseId);
+            vRenderDashboard();
+            vRenderCaseList();
+        };
+
+        // 中高勞通：在單位層級填一次，propagate 到該單位所有 cases
+        window.vInlineSaveUnitAddress = function(unitKey, value) {
+            clearTimeout(_vInlineAddrTimers['unit_' + unitKey]);
+            _vInlineAddrTimers['unit_' + unitKey] = setTimeout(() => {
+                const targets = verifyData.cases.filter(c => c.category === '中高勞通' && _vUnitKeyOf(c) === unitKey);
+                targets.forEach(c => { c.address = value; });
+                saveVerifyData();
+                if (typeof _scheduleAutoCloudSync === 'function') {
+                    targets.forEach(c => _scheduleAutoCloudSync(c.id));
+                }
+            }, 800);
+        };
+
+        window.vInlineSaveUnitVerificationDate = function(unitKey, value) {
+            const targets = verifyData.cases.filter(c => c.category === '中高勞通' && _vUnitKeyOf(c) === unitKey);
+            targets.forEach(c => {
+                c.verificationDate = value;
+                if (value && c.status === 'pending') c.status = 'inProgress';
+            });
+            saveVerifyData();
+            if (typeof _scheduleAutoCloudSync === 'function') {
+                targets.forEach(c => _scheduleAutoCloudSync(c.id));
+            }
+            vRenderDashboard();
+            vRenderCaseList();
+        };
 
         // ---- 開啟案件詳情 ----
         window.vOpenCase = function(caseId) {
@@ -14504,6 +15251,7 @@ ${rawDraft}
                                     <option value="pending" ${c.status==='pending'?'selected':''}>未驗收</option>
                                     <option value="inProgress" ${c.status==='inProgress'?'selected':''}>進行中</option>
                                     <option value="closed" ${c.status==='closed'?'selected':''}>結案</option>
+                                    <option value="abandoned" ${c.status==='abandoned'?'selected':''}>🚫 放棄申請</option>
                                 </select>
                             </div>
                             <div><label class="block text-xs font-bold text-slate-500 mb-1">成效驗收日 <span class="text-purple-500">=</span> 結案日</label><input type="date" class="v-field w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-400" data-field="verificationDate" value="${c.verificationDate||''}"></div>
@@ -15035,9 +15783,18 @@ ${rawDraft}
             if (!vCurrentUid || !db) return;
             const data = scheduleData[dateStr];
             if (!data) return;
+            // 🆕 重用 0427 的右下角同步 badge（_setAutoSyncStatus / _autoSyncLastAt）
+            if (typeof _setAutoSyncStatus === 'function') _setAutoSyncStatus('syncing');
             try {
                 await setDoc(doc(db, 'users', vCurrentUid, 'scheduleData', dateStr), data);
-            } catch(e) { console.warn('saveScheduleToFirebase', e); }
+                if (typeof _setAutoSyncStatus === 'function') {
+                    _autoSyncLastAt = new Date();
+                    _setAutoSyncStatus('synced');
+                }
+            } catch(e) {
+                console.warn('saveScheduleToFirebase', e);
+                if (typeof _setAutoSyncStatus === 'function') _setAutoSyncStatus('error');
+            }
         }
 
         function renderScheduleView() {
@@ -15683,6 +16440,7 @@ ${rawDraft}
             document.getElementById('v-sub-tabs')?.classList.remove('hidden');
             document.getElementById('verify-main').classList.add('hidden');
             document.getElementById('verify-schedule')?.classList.remove('hidden');
+            document.getElementById('verify-route')?.classList.add('hidden');
             document.getElementById('v-batch-bar')?.classList.add('hidden');
             vUpdateSubTabsUI('schedule');
             if (!currentScheduleDate) {
@@ -15698,7 +16456,663 @@ ${rawDraft}
         window.switchToVerifyMain = function() {
             document.getElementById('verify-main').classList.remove('hidden');
             document.getElementById('verify-schedule')?.classList.add('hidden');
+            document.getElementById('verify-route')?.classList.add('hidden');
             vUpdateSubTabsUI('main');
+        };
+
+        window.switchToRouteView = function() {
+            document.getElementById('v-sub-tabs')?.classList.remove('hidden');
+            document.getElementById('verify-main').classList.add('hidden');
+            document.getElementById('verify-schedule')?.classList.add('hidden');
+            document.getElementById('verify-route')?.classList.remove('hidden');
+            document.getElementById('v-batch-bar')?.classList.add('hidden');
+            vUpdateSubTabsUI('route');
+            initRouteView();
+        };
+
+        // ================================================================
+        // 🆕 行程規劃（Leaflet + Routing Machine + OSRM 公開 server）
+        // ================================================================
+
+        const ROUTE_PRESET = {
+            home:   { addr: '台南市東區崇德18街108號', label: '家' },
+            office: { addr: '高雄市苓雅區和平一路116號', label: '公司' },
+        };
+
+        // v3：改用 Google Maps Geocoding 為主、Nominatim 為 fallback；舊 v1/v2 自動失效
+        const _ROUTE_GEO_CACHE_KEY = 'kaiyuwork.geocodeCache.v3';
+        function _routeLoadGeoCache() {
+            try { return JSON.parse(localStorage.getItem(_ROUTE_GEO_CACHE_KEY) || '{}'); } catch(e) { return {}; }
+        }
+        function _routeSaveGeoCache(cache) {
+            try { localStorage.setItem(_ROUTE_GEO_CACHE_KEY, JSON.stringify(cache)); } catch(e) {}
+        }
+
+        // Nominatim fallback：地址類 class 優先；商家類避免誤抓
+        const _ROUTE_ADDR_CLASS = new Set(['place', 'highway', 'building', 'boundary', 'landuse']);
+        const _ROUTE_BUSINESS_CLASS = new Set(['shop', 'amenity', 'office', 'tourism', 'leisure', 'craft', 'historic']);
+
+        async function geocodeAddress(addr) {
+            const a = String(addr || '').trim();
+            if (!a) return null;
+            const cache = _routeLoadGeoCache();
+            if (cache[a]) return cache[a];
+
+            // 1) 優先：google.maps.Geocoder（透過 Maps JS API；支援 referrer 限制 key）
+            //    註：Google Geocoding REST API 不支援 referrer-restricted key，必須走 client-side Geocoder。
+            if (window.google && window.google.maps && window.google.maps.Geocoder) {
+                try {
+                    const geocoder = new window.google.maps.Geocoder();
+                    const result = await new Promise((resolve) => {
+                        geocoder.geocode({ address: a, region: 'TW', language: 'zh-TW' }, (results, status) => {
+                            if (status === 'OK' && results && results.length > 0) {
+                                const top = results[0];
+                                resolve({
+                                    lat: top.geometry.location.lat(),
+                                    lng: top.geometry.location.lng(),
+                                    display: top.formatted_address,
+                                    provider: 'google',
+                                    types: top.types || [],
+                                });
+                            } else {
+                                if (status !== 'ZERO_RESULTS') console.warn('Google Geocoder 失敗：', status);
+                                resolve(null);
+                            }
+                        });
+                    });
+                    if (result) {
+                        cache[a] = result;
+                        _routeSaveGeoCache(cache);
+                        return result;
+                    }
+                    // ZERO_RESULTS / OVER_QUERY_LIMIT 等 → 試 Nominatim
+                } catch(e) { console.warn('Google Geocoder error', e); }
+            }
+
+            // 2) Fallback：Nominatim（Google 載入前或查無時用）
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=tw&addressdetails=1&q=${encodeURIComponent(a)}&limit=5`;
+                const r = await fetch(url, { headers: { 'Accept-Language': 'zh-TW' } });
+                if (!r.ok) return null;
+                const json = await r.json();
+                if (!json || json.length === 0) return null;
+                let pick = json.find(x => _ROUTE_ADDR_CLASS.has(x.class));
+                if (!pick) pick = json.find(x => !_ROUTE_BUSINESS_CLASS.has(x.class));
+                if (!pick) return null;
+                const result = {
+                    lat: parseFloat(pick.lat),
+                    lng: parseFloat(pick.lon),
+                    display: pick.display_name,
+                    provider: 'nominatim',
+                    class: pick.class,
+                    type: pick.type,
+                };
+                cache[a] = result;
+                _routeSaveGeoCache(cache);
+                return result;
+            } catch(e) { console.warn('Nominatim geocode fail', a, e); }
+            return null;
+        }
+
+        let _routeMap = null;
+        let _routeDirSvc = null;          // google.maps.DirectionsService
+        let _routeDirRenderer = null;     // google.maps.DirectionsRenderer
+        let _routeMarkers = [];
+        let _routeWaypoints = []; // {key, name, addr, latLng:{lat,lng}, included}
+        let _routeOrigin = null;  // {addr, latLng:{lat,lng}}
+        let _routeDest = null;
+        let _routeMode = 'car';   // 'car' | 'motorcycle'
+        let _routeCurrentDate = ''; // 指定日期 mode 時記住該日（用來跟 scheduleData 同步 visitTime）
+
+        // 動態載入 Google Maps JS API（避免不需要時也載）
+        function loadGoogleMapsScript() {
+            if (window.google && window.google.maps) return Promise.resolve();
+            if (window._gmapLoading) return window._gmapLoading;
+            const key = settings.googleMapsApiKey || '';
+            if (!key) return Promise.reject(new Error('未設定 Google Maps API Key'));
+            window._gmapLoading = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=geometry&language=zh-TW&region=TW`;
+                script.async = true;
+                script.defer = true;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Google Maps 載入失敗（檢查 API key + referrer 限制）'));
+                document.head.appendChild(script);
+            });
+            return window._gmapLoading;
+        }
+
+        async function initRouteView() {
+            // 預設 input 起終點地址
+            const oAddr   = document.getElementById('route-origin-addr');
+            const dAddr   = document.getElementById('route-dest-addr');
+            if (oAddr && !oAddr.value) oAddr.value = ROUTE_PRESET.home.addr;
+            if (dAddr && !dAddr.value) dAddr.value = ROUTE_PRESET.home.addr;
+            const sourceSel = document.getElementById('route-source');
+            const dateInp = document.getElementById('route-date');
+            if (sourceSel) sourceSel.onchange = () => {
+                if (dateInp) dateInp.classList.toggle('hidden', sourceSel.value !== 'date');
+            };
+            // 起終點 preset 切換
+            [['route-origin-preset','route-origin-addr'],['route-dest-preset','route-dest-addr']].forEach(([selId, inpId]) => {
+                const sel = document.getElementById(selId);
+                const inp = document.getElementById(inpId);
+                if (!sel || !inp) return;
+                sel.onchange = () => {
+                    if (sel.value === 'home') inp.value = ROUTE_PRESET.home.addr;
+                    else if (sel.value === 'office') inp.value = ROUTE_PRESET.office.addr;
+                };
+            });
+            // 初始化 Google Map
+            if (!_routeMap) {
+                const status = document.getElementById('route-status');
+                if (status) status.textContent = '正在載入 Google Maps...';
+                try {
+                    await loadGoogleMapsScript();
+                } catch(e) {
+                    if (status) status.textContent = '⚠ ' + e.message;
+                    return;
+                }
+                _routeMap = new google.maps.Map(document.getElementById('route-map'), {
+                    center: { lat: 22.99, lng: 120.21 },
+                    zoom: 8,
+                    mapTypeControl: true,
+                    streetViewControl: false,
+                });
+                _routeDirSvc = new google.maps.DirectionsService();
+                _routeDirRenderer = new google.maps.DirectionsRenderer({
+                    map: _routeMap,
+                    suppressMarkers: true, // 自己加 marker，編號清楚
+                    polylineOptions: { strokeColor: '#7c3aed', strokeWeight: 5, strokeOpacity: 0.75 },
+                });
+                if (status) status.textContent = '✅ 地圖已就緒，按「載入訪視點」開始';
+            }
+        }
+
+        async function _routeGeocodeBatch(addrs, onProgress) {
+            const out = {};
+            const cache = _routeLoadGeoCache();
+            for (let i = 0; i < addrs.length; i++) {
+                const a = addrs[i];
+                if (out[a]) continue;
+                const wasCached = !!cache[a];
+                const r = await geocodeAddress(a);
+                out[a] = r;
+                if (onProgress) onProgress(i + 1, addrs.length, a, r);
+                // 沒 cache 才需 throttle（避免打 API 過快）
+                if (!wasCached) {
+                    const wait = (r && r.provider === 'google') ? 100 : 1100;
+                    await new Promise(res => setTimeout(res, wait));
+                }
+            }
+            return out;
+        }
+
+        window.routeLoadPoints = async function() {
+            const status = document.getElementById('route-status');
+            const sourceSel = document.getElementById('route-source');
+            const dateInp   = document.getElementById('route-date');
+            const source = sourceSel?.value || 'filtered';
+
+            // 取得要納入的訪視點
+            let cases = verifyData.cases || [];
+            // 行程整合：當 source=date 時記住目前正在規劃的日期，啟用時間欄位 + 跟 scheduleData 同步
+            _routeCurrentDate = '';
+            if (source === 'date') {
+                const d = dateInp?.value || '';
+                if (!d) { showToast('請選擇日期'); return; }
+                _routeCurrentDate = d;
+                // 預先 await 載入該日 scheduleData（讓 visitTime 帶得到）
+                if (typeof loadScheduleFromFirebase === 'function') {
+                    try { await loadScheduleFromFirebase(d); } catch(e) {}
+                }
+                // 成效驗收日 = d
+                const verifyHits = cases.filter(c => c.verificationDate === d);
+                // 訪視日 = d（從 casesData 抓主責、visitDate=d；地址用 companyAddress / workLocation）
+                const visitHits = (casesData || [])
+                    .filter(c => isPrimaryCase(c) && (c.visitDate === d || c.date === d))
+                    .map(c => ({
+                        id: 'visit_' + c.id,
+                        clientName: c.clientName || '',
+                        unit: c.company || '',
+                        category: '訪視',
+                        address: c.address || c.companyAddress || c.workLocation || '',
+                        verificationDate: d,
+                        _isVisit: true,
+                    }));
+                // 合併：以「地址」去重，verifyHits 優先
+                const addrSet = new Set(verifyHits.map(c => (c.address || '').trim()).filter(Boolean));
+                const visitDedup = visitHits.filter(c => {
+                    const a = (c.address || '').trim();
+                    if (!a) return false;
+                    if (addrSet.has(a)) return false;
+                    addrSet.add(a);
+                    return true;
+                });
+                cases = [...verifyHits, ...visitDedup];
+            } else if (source === 'filtered') {
+                // 跟驗收清單同邏輯
+                const yearFilter     = (document.getElementById('v-filter-year')?.value || '');
+                const dateVal        = document.getElementById('v-date-picker')?.value || '';
+                const statusFilter   = document.getElementById('v-filter-status')?.value || '';
+                const catFilter      = document.getElementById('v-filter-cat')?.value || '';
+                const districtFilter = (document.getElementById('v-filter-district')?.value || '');
+                if (yearFilter)     cases = cases.filter(c => c.year === yearFilter);
+                if (dateVal)        cases = cases.filter(c => c.verificationDate === dateVal);
+                if (statusFilter)   cases = cases.filter(c => c.status === statusFilter);
+                if (catFilter)      cases = cases.filter(c => c.category === catFilter);
+                if (districtFilter) cases = cases.filter(c => (c.district || '') === districtFilter);
+            }
+
+            // 排除未驗收（預設打勾）：pending 個案還沒排驗收日，不該被規劃進路線
+            const excludePending = document.getElementById('route-exclude-pending')?.checked;
+            if (excludePending) {
+                cases = cases.filter(c => c.status !== 'pending');
+            }
+
+            // 中高勞通同單位合併（一個地址只取一筆，但 peopleCount 累加）
+            const seen = new Map(); // addr → entry
+            const schedEntries = (_routeCurrentDate && scheduleData[_routeCurrentDate]?.entries) || {};
+            cases.forEach(c => {
+                const addr = (c.address || '').trim();
+                if (!addr) return;
+                if (seen.has(addr)) {
+                    // 同地址：累加人數（中高勞通同單位多人會走到這）
+                    seen.get(addr).peopleCount = (seen.get(addr).peopleCount || 1) + 1;
+                    return;
+                }
+                const name = c.category === '中高勞通'
+                    ? (c.unit || c.clientName || '')
+                    : (c.clientName || c.unit || '');
+                // schedKey：身障 dis_<id>；中高 elder_<year>_SEP_<caseNo|unit>
+                let schedKey;
+                if (c.category === '中高勞通') {
+                    schedKey = 'elder_' + (c.year || '') + '_SEP_' + (c.caseNo || c.unit || '');
+                } else if (c._isVisit) {
+                    const origId = String(c.id || '').replace(/^visit_/, '');
+                    schedKey = 'dis_' + origId;
+                } else {
+                    schedKey = 'dis_' + c.id;
+                }
+                const visitTime = schedEntries[schedKey]?.visitTime || '';
+                const fromVerify = !c._isVisit;
+                // 訪視日期：成效驗收 case 用 verificationDate；訪視 case 用 verificationDate（=當日）
+                const visitDate = c.verificationDate || c.visitDate || c.date || '';
+                seen.set(addr, {
+                    key: c.id,
+                    name,
+                    addr,
+                    latLng: null,
+                    included: true,
+                    schedKey,
+                    visitTime,
+                    fromVerify,
+                    category: c.category || '',          // 🆕 給 marker 顏色用
+                    visitDate,                            // 🆕 顯示在 row
+                    peopleCount: 1,                       // 🆕 同地址累加（中高勞通用）
+                });
+            });
+            _routeWaypoints = [...seen.values()];
+
+            // 若有 visitTime，預先依時間排序（無時間者排到最後）
+            if (_routeCurrentDate) {
+                _routeWaypoints.sort((a, b) => {
+                    const ta = a.visitTime || '99:99';
+                    const tb = b.visitTime || '99:99';
+                    return ta.localeCompare(tb);
+                });
+            }
+
+            if (_routeWaypoints.length === 0) {
+                if (status) status.textContent = '此範圍沒有可用地址（成效驗收 case 須先填地址）';
+                renderRouteWaypointList();
+                return;
+            }
+
+            if (status) status.textContent = `找到 ${_routeWaypoints.length} 個訪視點，正在轉換座標（每個 ~1 秒）...`;
+
+            // 起終點 geocode
+            const oAddr = document.getElementById('route-origin-addr')?.value || '';
+            const dAddr = document.getElementById('route-dest-addr')?.value || '';
+
+            // 一次性 batch
+            const allAddrs = [oAddr, dAddr, ..._routeWaypoints.map(w => w.addr)].filter(Boolean);
+            const geo = await _routeGeocodeBatch(allAddrs, (n, total, a, r) => {
+                if (status) status.textContent = `轉換座標 ${n}/${total} ${r ? '✓' : '✗'} ${a}`;
+            });
+
+            _routeOrigin = geo[oAddr] ? { addr: oAddr, latLng: { lat: geo[oAddr].lat, lng: geo[oAddr].lng } } : null;
+            _routeDest   = geo[dAddr] ? { addr: dAddr, latLng: { lat: geo[dAddr].lat, lng: geo[dAddr].lng } } : null;
+            _routeWaypoints.forEach(w => {
+                const r = geo[w.addr];
+                w.latLng = r ? { lat: r.lat, lng: r.lng } : null;
+            });
+
+            const failed = _routeWaypoints.filter(w => !w.latLng).length;
+            if (status) status.textContent = `✅ 載入完成（${_routeWaypoints.length - failed} 個成功${failed ? '、' + failed + ' 個地址查不到，請手動修正' : ''}）`;
+
+            renderRouteWaypointList();
+            renderRouteOnMap();
+        };
+
+        function renderRouteWaypointList() {
+            const div = document.getElementById('route-waypoint-list');
+            if (!div) return;
+            if (_routeWaypoints.length === 0) {
+                div.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">點「載入訪視點」按鈕開始</p>';
+                document.getElementById('route-summary').textContent = '';
+                return;
+            }
+            const showTime = !!_routeCurrentDate;
+            div.innerHTML = _routeWaypoints.map((w, idx) => {
+                const timeInput = showTime
+                    ? `<input type="time" value="${w.visitTime || ''}" onchange="window.routeSaveWpTime(${idx}, this.value)" onclick="event.stopPropagation()" class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white shrink-0" style="width:5.5rem" title="此時間會同步到行程表">`
+                    : '';
+                const apptIcons = w.fromVerify
+                    ? `<button onclick="window.vCopyAppointmentMsgFor('${w.key}')" title="複製預約訊息（給 LINE）" class="text-emerald-500 hover:text-emerald-700 px-1"><i class="fa-solid fa-comment-dots text-xs"></i></button>
+                       <button onclick="window.vSendAppointmentSMSFor('${w.key}')" title="傳預約簡訊" class="text-sky-500 hover:text-sky-700 px-1"><i class="fa-solid fa-message text-xs"></i></button>`
+                    : '';
+                const catChip = w.category === '身障'
+                    ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 shrink-0">身障</span>'
+                    : w.category === '中高勞通'
+                    ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">中高</span>'
+                    : w.category === '訪視'
+                    ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-800 shrink-0">訪視</span>'
+                    : w.isCustom
+                    ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 shrink-0">自訂</span>'
+                    : '';
+                const peopleChip = w.peopleCount > 1 ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">${w.peopleCount}人</span>` : '';
+                const dateChip = w.visitDate ? `<span class="text-[10px] text-slate-500 shrink-0">📅 ${w.visitDate}</span>` : '';
+                return `
+                <div class="route-wp flex items-center gap-2 p-2 rounded-lg border ${w.latLng ? 'border-slate-200 bg-slate-50' : 'border-rose-200 bg-rose-50'}" draggable="true" data-idx="${idx}">
+                    <i class="fa-solid fa-grip-vertical text-slate-300 cursor-grab"></i>
+                    <input type="checkbox" class="w-4 h-4 accent-purple-600" ${w.included ? 'checked' : ''} onchange="window.routeToggleInclude(${idx}, this.checked)">
+                    <span class="font-bold text-slate-500 text-xs w-6 text-right shrink-0">${idx + 1}.</span>
+                    ${timeInput}
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-sm font-medium text-slate-700 truncate">${w.name || '(無名稱)'}</span>
+                            ${catChip}${peopleChip}${dateChip}
+                        </div>
+                        <div class="text-xs text-slate-500 truncate">${w.addr}${w.latLng ? '' : ' <span class="text-rose-500">⚠ 查不到座標</span>'}</div>
+                    </div>
+                    <div class="flex items-center gap-0.5">
+                        ${apptIcons}
+                        <button onclick="window.routeEditAddr(${idx})" title="改地址重查" class="text-slate-400 hover:text-blue-600 px-1">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button onclick="window.routeRemoveWp(${idx})" title="從清單移除" class="text-slate-400 hover:text-red-500 px-1">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                        <div class="flex flex-col gap-0.5">
+                            <button onclick="window.routeMoveWp(${idx}, -1)" class="text-slate-400 hover:text-purple-600 ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === 0 ? 'disabled' : ''}>
+                                <i class="fa-solid fa-chevron-up text-xs"></i>
+                            </button>
+                            <button onclick="window.routeMoveWp(${idx}, 1)" class="text-slate-400 hover:text-purple-600 ${idx === _routeWaypoints.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === _routeWaypoints.length - 1 ? 'disabled' : ''}>
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            // 拖曳排序
+            const items = div.querySelectorAll('.route-wp');
+            let dragIdx = null;
+            items.forEach(item => {
+                item.addEventListener('dragstart', (e) => { dragIdx = parseInt(item.dataset.idx); item.classList.add('opacity-50'); });
+                item.addEventListener('dragend', () => { item.classList.remove('opacity-50'); });
+                item.addEventListener('dragover', (e) => { e.preventDefault(); });
+                item.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const target = parseInt(item.dataset.idx);
+                    if (dragIdx == null || dragIdx === target) return;
+                    const moved = _routeWaypoints.splice(dragIdx, 1)[0];
+                    _routeWaypoints.splice(target, 0, moved);
+                    renderRouteWaypointList();
+                    renderRouteOnMap();
+                });
+            });
+        }
+
+        window.routeToggleInclude = function(idx, val) {
+            if (_routeWaypoints[idx]) _routeWaypoints[idx].included = !!val;
+            renderRouteOnMap();
+        };
+        window.routeMoveWp = function(idx, dir) {
+            const j = idx + dir;
+            if (j < 0 || j >= _routeWaypoints.length) return;
+            [_routeWaypoints[idx], _routeWaypoints[j]] = [_routeWaypoints[j], _routeWaypoints[idx]];
+            renderRouteWaypointList();
+            renderRouteOnMap();
+        };
+        window.routeAddCustomPoint = async function() {
+            const inp = document.getElementById('route-custom-input');
+            const name = ''; // 自訂地點先不要求名稱
+            const addr = (inp?.value || '').trim();
+            if (!addr) { showToast('請先輸入地址'); inp?.focus(); return; }
+            const status = document.getElementById('route-status');
+            if (status) status.textContent = `查詢「${addr}」座標中...`;
+            const r = await geocodeAddress(addr);
+            if (!r) {
+                if (status) status.textContent = `⚠ 「${addr}」查不到座標，試完整一點的門牌`;
+                return;
+            }
+            _routeWaypoints.push({
+                key: 'custom_' + Date.now(),
+                name: '自訂地點',
+                addr: addr,
+                latLng: { lat: r.lat, lng: r.lng },
+                included: true,
+                isCustom: true,
+            });
+            if (inp) inp.value = '';
+            if (status) status.textContent = `✅ 已加入「${addr}」（${r.display || ''}）`;
+            renderRouteWaypointList();
+            renderRouteOnMap();
+        };
+
+        window.routeRemoveWp = function(idx) {
+            if (idx < 0 || idx >= _routeWaypoints.length) return;
+            _routeWaypoints.splice(idx, 1);
+            renderRouteWaypointList();
+            renderRouteOnMap();
+        };
+
+        // 改 waypoint 時間 → 同步寫進 scheduleData[date].entries[schedKey].visitTime（跟行程表共用）
+        window.routeSaveWpTime = async function(idx, val) {
+            const w = _routeWaypoints[idx];
+            if (!w || !_routeCurrentDate) return;
+            w.visitTime = val || '';
+            // 寫進 scheduleData
+            const sched = (typeof getScheduleForDate === 'function') ? getScheduleForDate(_routeCurrentDate) : null;
+            if (sched && w.schedKey) {
+                if (!sched.entries[w.schedKey]) sched.entries[w.schedKey] = {};
+                sched.entries[w.schedKey].visitTime = val || '';
+                if (typeof saveScheduleToFirebase === 'function') {
+                    saveScheduleToFirebase(_routeCurrentDate); // async + 已有 badge 同步狀態
+                }
+            }
+            // 依時間自動重排（無時間者排到最後）
+            _routeWaypoints.sort((a, b) => {
+                const ta = a.visitTime || '99:99';
+                const tb = b.visitTime || '99:99';
+                return ta.localeCompare(tb);
+            });
+            renderRouteWaypointList();
+            renderRouteOnMap();
+        };
+
+        window.routeEditAddr = async function(idx) {
+            const w = _routeWaypoints[idx];
+            if (!w) return;
+            const next = prompt(`改地址（${w.name || ''}）：\n\n查不到座標多半是因為地址太簡略或含括號雜質，建議改成完整門牌（縣市+區+路+號）`, w.addr);
+            if (next == null) return;
+            const trimmed = String(next).trim();
+            if (!trimmed) return;
+            if (trimmed === w.addr && w.latLng) return;
+            w.addr = trimmed;
+            w.latLng = null;
+            const status = document.getElementById('route-status');
+            if (status) status.textContent = '正在重查座標...';
+            const r = await geocodeAddress(trimmed);
+            if (r) {
+                w.latLng = { lat: r.lat, lng: r.lng };
+                if (status) status.textContent = `✅ 已找到：${r.display || trimmed}`;
+            } else {
+                if (status) status.textContent = '⚠ 還是查不到，再試完整一點的地址';
+            }
+            renderRouteWaypointList();
+            renderRouteOnMap();
+        };
+
+        function renderRouteOnMap() {
+            if (!_routeMap || !window.google) return;
+            _routeMarkers.forEach(m => m.setMap(null));
+            _routeMarkers = [];
+
+            // seq：[起點, ...included waypoints, 終點]
+            // Marker label：起=「起」、終=「終」、訪視點=按 row 順序 1, 2, 3...（不把起終點算進去）
+            const seq = [];
+            if (_routeOrigin?.latLng) seq.push({
+                latLng: { ..._routeOrigin.latLng },
+                label: '起點：' + _routeOrigin.addr,
+                role: 'origin',
+                labelText: '起',
+            });
+            const includedWps = _routeWaypoints.filter(w => w.included && w.latLng);
+            includedWps.forEach((w, i) => {
+                seq.push({
+                    latLng: { ...w.latLng },
+                    label: `${i + 1}. ${w.name || w.addr}`,
+                    role: 'waypoint',
+                    labelText: String(i + 1),
+                    category: w.category,
+                    isCustom: w.isCustom,
+                });
+            });
+            if (_routeDest?.latLng) seq.push({
+                latLng: { ..._routeDest.latLng },
+                label: '終點：' + _routeDest.addr,
+                role: 'dest',
+                labelText: '終',
+            });
+
+            // 起終點同址（家=家）→ 合成「起終」一個 marker，避免重疊
+            if (seq.length >= 2 && seq[0].role === 'origin' && seq[seq.length - 1].role === 'dest') {
+                const o = seq[0], d = seq[seq.length - 1];
+                const sameSpot = Math.abs(o.latLng.lat - d.latLng.lat) < 0.0001 && Math.abs(o.latLng.lng - d.latLng.lng) < 0.0001;
+                if (sameSpot) {
+                    o.labelText = '起終';
+                    o.role = 'origin-dest';
+                    o.label = '起點 / 終點：' + (_routeOrigin.addr || '');
+                    seq.pop();  // 移除終點 marker（DirectionsService 仍會單獨用 _routeDest.latLng）
+                }
+            }
+
+            // 重疊偵測 + 螺旋偏移加大（同 lat/lng 的 marker 自動錯開避免蓋住）
+            const used = new Map();
+            seq.forEach(s => {
+                const key = `${s.latLng.lat.toFixed(5)},${s.latLng.lng.toFixed(5)}`;
+                const n = used.get(key) || 0;
+                if (n > 0) {
+                    const angle = (n - 1) * (Math.PI / 4);
+                    const dist  = 0.0003 * Math.ceil(n / 8);   // 加大到 ~33 公尺
+                    s.latLng = { lat: s.latLng.lat + dist * Math.sin(angle), lng: s.latLng.lng + dist * Math.cos(angle) };
+                }
+                used.set(key, n + 1);
+            });
+
+            // 顏色：起綠、終紅、起終灰紫、身障紫、中高琥珀、訪視青、自訂藍
+            const COLOR = { origin: '#10b981', dest: '#ef4444', 'origin-dest': '#475569', '身障': '#a855f7', '中高勞通': '#f59e0b', '訪視': '#06b6d4', custom: '#3b82f6', default: '#7c3aed' };
+            seq.forEach((s, i) => {
+                let color = COLOR.default;
+                if (COLOR[s.role]) color = COLOR[s.role];
+                else if (s.isCustom) color = COLOR.custom;
+                else if (s.category && COLOR[s.category]) color = COLOR[s.category];
+
+                // 起/終/起終的 label 是中文較長 → marker 稍大
+                const isSpecial = s.role === 'origin' || s.role === 'dest' || s.role === 'origin-dest';
+                const scale = isSpecial && s.labelText.length > 1 ? 18 : 14;
+                const fontSize = isSpecial && s.labelText.length > 1 ? '10px' : '12px';
+
+                const marker = new google.maps.Marker({
+                    position: s.latLng,
+                    map: _routeMap,
+                    label: { text: s.labelText, color: 'white', fontWeight: 'bold', fontSize },
+                    title: s.label,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale,
+                        fillColor: color,
+                        fillOpacity: 1,
+                        strokeColor: 'white',
+                        strokeWeight: 2,
+                    },
+                });
+                _routeMarkers.push(marker);
+            });
+
+            const summaryEl = document.getElementById('route-summary');
+
+            // 至少要有 origin + dest 才算路線（waypoints 可選）
+            const canRoute = _routeOrigin?.latLng && _routeDest?.latLng;
+            if (canRoute) {
+                const request = {
+                    origin: _routeOrigin.latLng,
+                    destination: _routeDest.latLng,
+                    waypoints: includedWps.map(w => ({ location: w.latLng, stopover: true })),
+                    optimizeWaypoints: false,
+                    travelMode: google.maps.TravelMode.DRIVING,
+                };
+                _routeDirSvc.route(request, (result, status) => {
+                    if (status === 'OK') {
+                        _routeDirRenderer.setDirections(result);
+                        const route = result.routes[0];
+                        let dist = 0, dur = 0;
+                        route.legs.forEach(l => { dist += (l.distance?.value || 0); dur += (l.duration?.value || 0); });
+                        const km = (dist / 1000).toFixed(1);
+                        const min = Math.round(dur / 60);
+                        const icon = _routeMode === 'motorcycle' ? '🏍' : '🚗';
+                        const note = _routeMode === 'motorcycle' ? '（汽車路徑估算，實際請以 Google Maps 為準）' : '';
+                        if (summaryEl) summaryEl.textContent = `${icon} ${km} km，約 ${min} 分鐘 ${note}`;
+                    } else {
+                        if (summaryEl) summaryEl.textContent = `⚠ Google Directions 失敗：${status}`;
+                        try { _routeDirRenderer.setDirections({ routes: [] }); } catch(e) {}
+                    }
+                });
+            } else {
+                if (summaryEl) summaryEl.textContent = '⚠ 起點或終點地址查不到座標，無法規劃路線';
+                try { _routeDirRenderer.setDirections({ routes: [] }); } catch(e) {}
+                if (seq.length >= 1) _routeMap.setCenter(seq[0].latLng);
+            }
+        }
+
+        window.routeSetMode = function(mode) {
+            _routeMode = (mode === 'motorcycle') ? 'motorcycle' : 'car';
+            const carBtn  = document.getElementById('route-mode-car');
+            const motoBtn = document.getElementById('route-mode-moto');
+            if (carBtn && motoBtn) {
+                const onCls = 'text-xs font-bold px-2.5 py-1.5 rounded bg-white shadow text-slate-700';
+                const offCls = 'text-xs font-bold px-2.5 py-1.5 rounded text-slate-500 hover:text-slate-700';
+                carBtn.className  = (_routeMode === 'car')        ? onCls : offCls;
+                motoBtn.className = (_routeMode === 'motorcycle') ? onCls : offCls;
+            }
+            // 切換不影響 OSRM 路徑（公開伺服器只有 driving profile），但時間估算會調整
+            renderRouteOnMap();
+        };
+
+        window.routeOpenInGmaps = function() {
+            const oAddr = document.getElementById('route-origin-addr')?.value || '';
+            const dAddr = document.getElementById('route-dest-addr')?.value || '';
+            if (!oAddr || !dAddr) { showToast('請填起點與終點地址'); return; }
+            const wps = _routeWaypoints.filter(w => w.included).map(w => w.addr);
+            if (wps.length > 9) {
+                if (!confirm(`Google Maps URL 最多 9 個 waypoints，目前 ${wps.length} 個，將只帶前 9 個。繼續？`)) return;
+            }
+            // 機車用 two-wheeler（亞洲版 Google Maps 支援），開車用 driving
+            const travelmode = (_routeMode === 'motorcycle') ? 'two-wheeler' : 'driving';
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(oAddr)}&destination=${encodeURIComponent(dAddr)}&travelmode=${travelmode}${wps.length ? '&waypoints=' + wps.slice(0, 9).map(encodeURIComponent).join('|') : ''}`;
+            window.open(url, '_blank');
         };
 
         // ================================================================
@@ -16134,10 +17548,11 @@ ${rawDraft}
                     unitPhone: c.phone || '',
                     category: '身障',
                     year: _inferCaseYear(c),
+                    district: String(c.district || c.referralSource || '').replace(/[縣市]/g, '').trim(),   // 🆕 供轄區篩選
                     visitDate: formatDateYMD(c.visitDate || c.date) || '',   // 🆕 供排序
                     status: status,
                     noReview: reviews.length === 0,   // 🆕 無審查資料提醒
-                    address: supp.address || c.address || '',
+                    address: supp.address || c.address || c.companyAddress || c.workLocation || '',
                     docFile: docFileFromEval || supp.docFile || null,
                     verificationDate: c.verificationDate || supp.verificationDate || '',
                     notes: supp.notes || '',
@@ -16255,12 +17670,13 @@ ${rawDraft}
                         unitPhone: m.phone || rep.phone || '',
                         category: '中高勞通',
                         year: year,
+                        district: String(m.district || rep.district || m.referralSource || rep.referralSource || '').replace(/[縣市]/g, '').trim(),   // 🆕 供轄區篩選
                         status: mStatus,
                         noReview: unitNoReview,   // 🆕 無審查資料提醒（單位層級）
                         verificationDate: m.verificationDate || supp.verificationDate || '',
                         visitDate: formatDateYMD(m.visitDate || m.date) || '',   // 🆕 供排序
                         notes: supp.notes || '',
-                        address: supp.address || m.address || '',
+                        address: supp.address || m.address || m.companyAddress || m.workLocation || rep.companyAddress || rep.workLocation || '',
                         docFile: docFileFromEval || supp.docFile || null,
                         _unitMemberIds: [...memberIds],
                         items: [],
@@ -16542,7 +17958,7 @@ ${rawDraft}
             if (currentUser) vCurrentUid = currentUser.uid;   // 防呆同步
             // 從 casesData + reviewsData 動態合成 verifyData.cases（取代原本的 Excel 匯入來源）
             try { vSyncFromCases(); } catch(e) { console.warn('vSyncFromCases failed', e); }
-            try { vRenderDashboard(); vPopulateYearFilter(); vRenderCaseList(); } catch(e) { console.warn('verify render failed', e); }
+            try { vRenderDashboard(); vPopulateYearFilter(); vPopulateDistrictFilter(); vRenderCaseList(); } catch(e) { console.warn('verify render failed', e); }
             window._verifyModuleInited = true;
         };
 
