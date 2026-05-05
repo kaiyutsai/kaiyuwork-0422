@@ -178,6 +178,22 @@
                     </label>
                 </div>
                 <div id="case-import-status" class="hidden bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-sm font-medium mb-2"></div>
+                <!-- 🆕 匯入工具列：強制覆蓋 + 修復按鈕 -->
+                <div class="flex flex-wrap items-center gap-2 mb-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <label class="flex items-center gap-1.5 text-xs font-bold text-amber-800 cursor-pointer select-none" title="勾選後：匯入時 Excel 為準，覆蓋現有所有欄位（不只補空）">
+                        <input type="checkbox" id="case-import-force" class="w-4 h-4 accent-amber-600">
+                        <i class="fa-solid fa-arrows-rotate"></i> 強制覆蓋（Excel 為準）
+                    </label>
+                    <span class="text-[11px] text-slate-500 ml-1">未勾預設「補空不覆蓋」</span>
+                    <div class="ml-auto flex items-center gap-2">
+                        <button type="button" onclick="window.diagSameCompany()" class="text-xs font-bold bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300 px-3 py-1.5 rounded-lg" title="輸入企業名/編號關鍵字，列出所有相符 case 的詳細狀態（看資料是否分散到多筆）">
+                            <i class="fa-solid fa-magnifying-glass-chart mr-1"></i>診斷案件狀態
+                        </button>
+                        <button type="button" onclick="window.fixSwapOwnerInspector()" class="text-xs font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 px-3 py-1.5 rounded-lg" title="把所有「c.inspector 是凱宇/蔡凱宇」的 case 對換 owner ↔ inspector（一次性修復早期匯入的錯位）">
+                            <i class="fa-solid fa-right-left mr-1"></i>修復 owner/inspector 對換
+                        </button>
+                    </div>
+                </div>
                 <div class="flex items-center justify-between bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap gap-2">
                     <div class="text-sm md:text-base text-slate-600 font-bold flex items-center gap-2">
                         <i class="fa-solid fa-user-check text-blue-500"></i>
@@ -683,29 +699,17 @@
                         </div>
                     </div>
 
-                    <!-- 🆕 單日行程表 Word 匯出：訪視/成效 兩個獨立收合清單，依離今日最近排序 -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                        <details class="bg-blue-50 border border-blue-200 rounded-xl group" ontoggle="this.open && window.renderTripDateList && window.renderTripDateList('visit')">
-                            <summary class="p-3 cursor-pointer font-bold text-blue-800 flex items-center justify-between gap-2 select-none">
-                                <span><i class="fa-solid fa-person-walking mr-1"></i>訪視行程表清單</span>
-                                <i class="fa-solid fa-chevron-down text-blue-400 transition-transform group-open:rotate-180"></i>
-                            </summary>
-                            <div class="p-3 pt-0">
-                                <p class="text-xs text-slate-500 mb-2">日期由新到舊排序。點下載按鈕即產生 Word 行程表。</p>
-                                <div id="sch-trip-visit-list" class="space-y-1.5 max-h-96 overflow-y-auto"></div>
-                            </div>
-                        </details>
-                        <details class="bg-emerald-50 border border-emerald-200 rounded-xl group" ontoggle="this.open && window.renderTripDateList && window.renderTripDateList('outcome')">
-                            <summary class="p-3 cursor-pointer font-bold text-emerald-800 flex items-center justify-between gap-2 select-none">
-                                <span><i class="fa-solid fa-clipboard-check mr-1"></i>成效行程表清單</span>
-                                <i class="fa-solid fa-chevron-down text-emerald-400 transition-transform group-open:rotate-180"></i>
-                            </summary>
-                            <div class="p-3 pt-0">
-                                <p class="text-xs text-slate-500 mb-2">日期由新到舊排序。點下載按鈕即產生 Word 行程表。</p>
-                                <div id="sch-trip-outcome-list" class="space-y-1.5 max-h-96 overflow-y-auto"></div>
-                            </div>
-                        </details>
-                    </div>
+                    <!-- 🆕 單日行程表 Word 匯出：訪視 + 成效合併同一張清單，每日 row 同時顯示兩種統計 -->
+                    <details class="bg-slate-50 border border-slate-200 rounded-xl group mb-4" ontoggle="this.open && window.renderTripDateList && window.renderTripDateList('all')">
+                        <summary class="p-3 cursor-pointer font-bold text-slate-700 flex items-center justify-between gap-2 select-none">
+                            <span><i class="fa-solid fa-calendar-days mr-1"></i>單日行程表清單（訪視 + 成效）</span>
+                            <i class="fa-solid fa-chevron-down text-slate-400 transition-transform group-open:rotate-180"></i>
+                        </summary>
+                        <div class="p-3 pt-0">
+                            <p class="text-xs text-slate-500 mb-2">日期由新到舊排序。同日有訪視+成效會並列顯示，可分別下載對應 Word 行程表。</p>
+                            <div id="sch-trip-list" class="space-y-1.5 max-h-96 overflow-y-auto"></div>
+                        </div>
+                    </details>
 
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
                         <input type="month" id="sch-filter-month" class="p-3 border border-slate-200 rounded-lg text-base">
@@ -815,6 +819,59 @@
                             <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存設定
                         </button>
                     </div>
+                </div>
+
+                <!-- 🆕 原始資料總表（全部 case + 審查 + 成效串在一起，可編輯/刪除/匯出 Excel） -->
+                <div class="mb-8 p-4 rounded-xl bg-slate-50 border border-slate-300">
+                    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-database mr-1"></i>原始資料總表</h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="master-table-search" placeholder="搜尋姓名/編號/單位..." class="text-xs p-1.5 border border-slate-300 rounded-lg" style="width:180px;">
+                            <button onclick="window.renderMasterTable()" class="text-xs font-bold bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded shadow"><i class="fa-solid fa-arrows-rotate mr-1"></i>重整</button>
+                            <button onclick="window.exportMasterTableExcel()" class="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded shadow"><i class="fa-solid fa-file-excel mr-1"></i>下載 Excel</button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3">每筆 case 串接訪視紀錄 / 審查品項 / 成效資料，一覽所有原始資料，可逐筆編輯或刪除。</p>
+                    <div id="master-table-summary" class="text-xs text-slate-600 mb-2"></div>
+                    <div class="overflow-x-auto bg-white rounded-lg border border-slate-200 max-h-[60vh] overflow-y-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-slate-100 sticky top-0">
+                                <tr>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-left whitespace-nowrap">編號</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-left whitespace-nowrap">姓名</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-left whitespace-nowrap">單位</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-left whitespace-nowrap">類別</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap">訪視日</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap">訪視專員<br>(owner)</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap">轄區承辦<br>(inspector)</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap">階段</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap" title="審查品項數">審查</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap">驗收日</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap" title="工作站數">工作站</th>
+                                    <th class="px-2 py-1.5 border-b border-slate-200 text-center whitespace-nowrap">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="master-table-body">
+                                <tr><td colspan="12" class="text-center text-slate-400 py-4">登入後點「重整」載入</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 🆕 雲端 + 本地備份系統 (Phase 1) -->
+                <div class="mb-8 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-blue-50 border border-emerald-200">
+                    <h3 class="font-bold text-lg text-emerald-800 mb-2"><i class="fa-solid fa-shield-halved mr-1"></i>資料備份系統</h3>
+                    <p class="text-xs text-slate-600 mb-3">登入後每日自動備份文字資料到 Google Drive（跟主資料庫解耦，避免全壞）。每月提醒下載本地副本當雙保險。</p>
+                    <p id="backup-status-display" class="text-sm text-slate-700 mb-3 font-mono">載入中...</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="window.doDailyBackup(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow active:scale-95">
+                            <i class="fa-solid fa-cloud-arrow-up mr-1"></i>立即備份到 Drive
+                        </button>
+                        <button onclick="window.downloadBackupLocal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow active:scale-95">
+                            <i class="fa-solid fa-download mr-1"></i>下載本地備份 (.json)
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-2">備份內容：cases / reviews / meetings / scheduleData / settings / verifySupplements / 手動行程。<b class="text-rose-600">不含照片/錄音大檔</b>（節省體積）。</p>
                 </div>
 
                 <div class="mb-8">
@@ -943,14 +1000,24 @@
                     </div>
 
                     <div>
-                        <label class="block text-base font-medium text-slate-600 mb-1">轄區承辦 *</label>
+                        <!-- 對應 c.owner（接案人員，多為凱宇本人）— 凱宇 2026-05-05 確認對應修正 -->
+                        <label class="block text-base font-medium text-slate-600 mb-1">訪視專員（主） *</label>
                         <select id="form-owner" required class="w-full p-3 md:p-4 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-base md:text-lg bg-white">
+                            <option value="">請選擇訪視專員</option>
                             <option value="凱宇">凱宇</option>
                             <option value="蔡凱宇">蔡凱宇</option>
                             <option value="黃國裕">黃國裕</option>
                             <option value="高湘怡">高湘怡</option>
                             <option value="方姿云">方姿云</option>
                             <option value="陳秋媚">陳秋媚</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <!-- 對應 c.inspector（轄區承辦/同事）— 凱宇 2026-05-05 確認對應修正 -->
+                        <label class="block text-base font-medium text-slate-600 mb-1">轄區承辦 *</label>
+                        <select id="form-inspector" class="w-full p-3 md:p-4 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-base md:text-lg bg-white">
+                            <option value="">請選擇轄區承辦</option>
                             <option value="盧怡倫">盧怡倫</option>
                             <option value="張世立">張世立</option>
                             <option value="洪錦蓉">洪錦蓉</option>
@@ -960,18 +1027,6 @@
                             <option value="林益青">林益青</option>
                             <option value="胡媧祥">胡媧祥</option>
                             <option value="黃致綺">黃致綺</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-base font-medium text-slate-600 mb-1">訪視專員（主） *</label>
-                        <select id="form-inspector" class="w-full p-3 md:p-4 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-base md:text-lg bg-white">
-                            <option value="">請選擇訪視專員</option>
-                            <option value="蔡凱宇">蔡凱宇</option>
-                            <option value="方姿云">方姿云</option>
-                            <option value="陳秋媚">陳秋媚</option>
-                            <option value="高湘怡">高湘怡</option>
-                            <option value="黃國裕">黃國裕</option>
                         </select>
                     </div>
 
@@ -1240,11 +1295,11 @@
                             </button>
                         </div>
 
-                        <!-- 🆕 下載成效訪視行程表 Word -->
+                        <!-- 🆕 下載訪視行程表 Word（統一檔名「訪視行程表」） -->
                         <div class="mb-3">
                             <button onclick="window.exportTripScheduleDocx(document.getElementById('sched-date-input').value, 'outcome')"
                                     class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow active:scale-95 transition-all">
-                                <i class="fa-solid fa-file-word mr-1"></i>下載成效訪視行程表 (Word)
+                                <i class="fa-solid fa-file-word mr-1"></i>下載訪視行程表 (Word)
                             </button>
                         </div>
 
@@ -2390,18 +2445,18 @@
                     </div>
                 </div>
 
-                <!-- 單位人員清單 -->
+                <!-- 單位人員清單（自動從同單位案件帶入；保留隱藏的 Excel 匯入給特殊狀況） -->
                 <div class="p-4 border-b border-slate-100">
                     <div class="flex justify-between items-center mb-2">
                         <h3 class="font-bold text-sm text-slate-700"><i class="fa-solid fa-users text-emerald-500 mr-1"></i>單位人員清單</h3>
-                        <label class="bg-emerald-600 text-white px-2 py-1 rounded-lg text-xs font-bold cursor-pointer hover:bg-emerald-700">
+                        <label class="hidden bg-emerald-600 text-white px-2 py-1 rounded-lg text-xs font-bold cursor-pointer hover:bg-emerald-700" title="（已自動帶入，平常不需要）">
                             <i class="fa-solid fa-file-excel mr-1"></i>匯入 Excel
                             <input type="file" id="elder-company-excel" accept=".xlsx,.xls" class="hidden">
                         </label>
                     </div>
-                    <p class="text-xs text-slate-400 mb-2">匯入後可在各工作站勾選納編人員</p>
+                    <p class="text-xs text-slate-400 mb-2">已自動從同單位案件帶入</p>
                     <div id="elder-company-personnel-list" class="space-y-1 max-h-40 overflow-y-auto no-scrollbar">
-                        <p class="text-xs text-slate-400 text-center py-2">尚未匯入人員</p>
+                        <p class="text-xs text-slate-400 text-center py-2">載入中...</p>
                     </div>
                 </div>
 
@@ -2428,18 +2483,8 @@
             <!-- ➡️ 右側主工作區 -->
             <div id="elder-main-area" class="flex-1 overflow-y-auto p-4 md:p-6 pb-20">
 
-                <!-- 訪視開場白（中高齡） -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-4">
-                    <div class="p-4 md:p-5 border-b border-slate-100 flex items-center justify-between gap-3">
-                        <h3 class="font-bold text-slate-700 text-base md:text-lg"><i class="fa-solid fa-layer-group text-blue-500 mr-2"></i>工作區切換</h3>
-                        <button id="elder-btn-add-ws-inline" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold hover:bg-blue-700">
-                            <i class="fa-solid fa-plus mr-1"></i>新增工作站
-                        </button>
-                    </div>
-                    <div id="elder-ws-quick-list" class="p-4 md:p-5 grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <p class="text-sm text-slate-400">尚無工作站</p>
-                    </div>
-                </div>
+                <!-- 「工作區切換」區塊已移除：跟左欄「工作站列表」重複，統一到左欄一處新增/切換 -->
+
                 <div class="hidden bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl border border-amber-200 shadow-sm overflow-hidden mb-4">
                     <button onclick="document.getElementById('elder-opening-body').classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')" class="w-full flex items-center justify-between p-4 hover:bg-amber-100 transition-colors">
                         <span class="font-bold text-amber-800 flex items-center gap-2"><i class="fa-solid fa-microphone-lines text-amber-500"></i>訪視開場白稿</span>
@@ -3016,6 +3061,339 @@
             return false;
         };
 
+        // 🆕 一鍵修復「owner / inspector 對換」錯位（早期匯入別名規則跟現在相反，所以資料寫反）
+        // 規則：c.inspector 是凱宇/蔡凱宇 → 該筆 owner 跟 inspector 對換（凱宇應該是 owner=訪視專員）
+        // 安全：只動命中規則的 case；對換完寫回 Firestore
+        window.fixSwapOwnerInspector = async function() {
+            if (!currentUser) { showToast('請先登入'); return; }
+            const candidates = (casesData || []).filter(c => _matchesAlias(c.inspector));
+            if (candidates.length === 0) {
+                showToast('沒有需要修復的 case（c.inspector 都不是凱宇）');
+                return;
+            }
+            if (!confirm(`偵測到 ${candidates.length} 筆 case 的 inspector 是凱宇本人（應為 owner）。\n\n按確定 → 自動把這些 case 的 owner ↔ inspector 對換並寫回雲端。\n（此動作可逆：再點一次同樣可換回。建議先備份。）`)) return;
+            let ok = 0, fail = 0;
+            for (const c of candidates) {
+                try {
+                    const newOwner = c.inspector || '';
+                    const newInspector = c.owner || '';
+                    c.owner = newOwner;
+                    c.inspector = newInspector;
+                    await updateDoc(doc(db, 'users', currentUser.uid, 'cases', c.id), {
+                        owner: newOwner,
+                        inspector: newInspector,
+                        updatedAt: serverTimestamp()
+                    });
+                    ok++;
+                } catch (err) {
+                    console.warn('[fixSwapOwnerInspector] 失敗', c.id, err);
+                    fail++;
+                }
+            }
+            showToast(`✅ 修復 ${ok} 筆${fail ? ` / 失敗 ${fail}` : ''}`);
+            // 重 render
+            if (typeof renderCaseList === 'function') renderCaseList();
+        };
+
+        // 🆕 診斷案件狀態（不用 console）：輸入企業名/編號關鍵字 → modal 列出所有相符 case
+        window.diagSameCompany = function() {
+            const kw = prompt('輸入企業名 / 編號 / 姓名 關鍵字：', '得意');
+            if (!kw || !String(kw).trim()) return;
+            const k = String(kw).trim().toLowerCase();
+            const cases = (casesData || []).filter(c =>
+                (c.company && String(c.company).toLowerCase().includes(k)) ||
+                (c.caseNo && String(c.caseNo).toLowerCase().includes(k)) ||
+                (c.clientName && String(c.clientName).toLowerCase().includes(k))
+            );
+            const verifyHits = (verifyData?.cases || []).filter(c =>
+                (c.unit && String(c.unit).toLowerCase().includes(k)) ||
+                (c.caseNo && String(c.caseNo).toLowerCase().includes(k)) ||
+                (c.clientName && String(c.clientName).toLowerCase().includes(k))
+            );
+            const titleEl = document.getElementById('diag-case-title');
+            const bodyEl = document.getElementById('diag-case-body');
+            if (titleEl) titleEl.textContent = `診斷「${kw}」 — casesData ${cases.length} 筆 / verifyData ${verifyHits.length} 筆`;
+            if (cases.length === 0 && verifyHits.length === 0) {
+                if (bodyEl) bodyEl.textContent = '找不到相符案件';
+            } else {
+                const lines = [];
+                lines.push('=== casesData (主資料源) ===\n');
+                cases.forEach((c, i) => {
+                    lines.push(`【${i+1}】 caseNo=${c.caseNo || '(無)'}  unitCaseNo=${c.unitCaseNo || '-'}`);
+                    lines.push(`     id=${c.id}`);
+                    lines.push(`     公司: ${c.company || ''}`);
+                    lines.push(`     姓名: ${c.clientName || ''}  性別:${c.clientGender||'-'} 年齡:${c.clientAge||'-'} 生日:${c.clientDob||'-'}`);
+                    lines.push(`     類別: ${c.category || ''}    階段: ${c.stage || ''}`);
+                    lines.push(`     訪視日: ${c.visitDate || c.date || '-'}`);
+                    lines.push(`     地址: ${c.companyAddress || c.workLocation || '-'}`);
+                    lines.push(`     轄區: ${c.district || '-'}`);
+                    lines.push(`     接案人員(owner): ${c.owner || '-'}`);
+                    lines.push(`     承辦(inspector): ${c.inspector || '-'}`);
+                    lines.push(`     工作站數: ${(c.workstations||[]).length}  人員清單數: ${(c.companyPersonnel||[]).length}`);
+                    if ((c.workstations||[]).length > 0) {
+                        c.workstations.forEach((ws, j) => {
+                            lines.push(`       ws${j+1}: ${ws.name||'(無名)'}  納編人員 ${(ws.personnelIds||[]).length} 位  紀錄 ${(ws.records||[]).length} 筆`);
+                        });
+                    }
+                    if ((c.companyPersonnel||[]).length > 0) {
+                        const names = c.companyPersonnel.map(p => p.name || p.id).slice(0,8).join('、');
+                        lines.push(`       人員: ${names}${c.companyPersonnel.length > 8 ? ` ...等 ${c.companyPersonnel.length}` : ''}`);
+                    }
+                    lines.push('');
+                });
+                if (verifyHits.length > 0) {
+                    lines.push('\n=== verifyData (成效驗收 shim) ===\n');
+                    verifyHits.forEach((c, i) => {
+                        lines.push(`【${i+1}】 caseNo=${c.caseNo || '(無)'}  姓名=${c.clientName || ''}  單位=${c.unit || ''}`);
+                        lines.push(`     verificationDate=${c.verificationDate || '-'}  status=${c.status || '-'}  地址=${c.address || '-'}`);
+                        lines.push('');
+                    });
+                }
+                if (bodyEl) bodyEl.textContent = lines.join('\n');
+            }
+            document.getElementById('diag-case-modal')?.classList.remove('hidden');
+        };
+
+        // 🆕 原始資料總表（系統設定頁）：列出所有 case 串接審查/成效資料
+        window.renderMasterTable = function() {
+            const body = document.getElementById('master-table-body');
+            const summary = document.getElementById('master-table-summary');
+            if (!body) return;
+            const kw = (document.getElementById('master-table-search')?.value || '').toLowerCase().trim();
+            let cases = (casesData || []).slice();
+            if (kw) {
+                cases = cases.filter(c =>
+                    String(c.caseNo||'').toLowerCase().includes(kw) ||
+                    String(c.clientName||'').toLowerCase().includes(kw) ||
+                    String(c.company||'').toLowerCase().includes(kw)
+                );
+            }
+            // 排序：訪視日 DESC + caseNo 升序
+            cases.sort((a, b) => {
+                const da = formatDateYMD(a.visitDate || a.date) || '';
+                const db = formatDateYMD(b.visitDate || b.date) || '';
+                const dCmp = db.localeCompare(da);
+                if (dCmp !== 0) return dCmp;
+                return String(a.caseNo||'').localeCompare(String(b.caseNo||''), 'zh-Hant', { numeric: true });
+            });
+            // 對每筆 case 計算對應審查 / 成效統計
+            const reviewsByCase = new Map();
+            (reviewsData || []).forEach(r => {
+                if (!reviewsByCase.has(r.caseId)) reviewsByCase.set(r.caseId, []);
+                reviewsByCase.get(r.caseId).push(r);
+            });
+            const verifyByCase = new Map();
+            (verifyData?.cases || []).forEach(v => verifyByCase.set(v.id, v));
+            if (cases.length === 0) {
+                body.innerHTML = '<tr><td colspan="12" class="text-center text-slate-400 py-4">無資料</td></tr>';
+                if (summary) summary.textContent = '';
+                return;
+            }
+            body.innerHTML = cases.map(c => {
+                const reviews = reviewsByCase.get(c.id) || [];
+                const verify = verifyByCase.get(c.id);
+                const reviewCnt = reviews.length;
+                const wsCnt = (c.workstations || []).length;
+                const verDate = verify?.verificationDate || '-';
+                const stage = c.stage || '-';
+                const _esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,'&#39;');
+                return `<tr class="border-b border-slate-100 hover:bg-blue-50">
+                    <td class="px-2 py-1 whitespace-nowrap font-mono">${_esc(c.caseNo)}</td>
+                    <td class="px-2 py-1 whitespace-nowrap font-bold">${_esc(c.clientName)}</td>
+                    <td class="px-2 py-1 truncate max-w-[180px]" title="${_esc(c.company)}">${_esc(c.company)}</td>
+                    <td class="px-2 py-1 text-[11px]">${_esc(c.category)}</td>
+                    <td class="px-2 py-1 text-center text-[11px]">${formatDateYMD(c.visitDate || c.date) || '-'}</td>
+                    <td class="px-2 py-1 text-center text-[11px]">${_esc(c.owner)}</td>
+                    <td class="px-2 py-1 text-center text-[11px]">${_esc(c.inspector)}</td>
+                    <td class="px-2 py-1 text-center text-[11px]">${_esc(stage)}</td>
+                    <td class="px-2 py-1 text-center"><span class="px-1.5 py-0.5 rounded ${reviewCnt>0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}">${reviewCnt}</span></td>
+                    <td class="px-2 py-1 text-center text-[11px] ${verDate !== '-' ? 'text-emerald-700 font-bold' : 'text-slate-400'}">${verDate}</td>
+                    <td class="px-2 py-1 text-center"><span class="px-1.5 py-0.5 rounded ${wsCnt>0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'}">${wsCnt}</span></td>
+                    <td class="px-2 py-1 text-center whitespace-nowrap">
+                        <button onclick="window.masterEditCase('${c.id}')" class="text-blue-600 hover:text-blue-800 px-1" title="編輯"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="window.masterDeleteCase('${c.id}', '${_esc(c.caseNo)} ${_esc(c.clientName)}')" class="text-rose-500 hover:text-rose-700 px-1" title="刪除"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+            if (summary) {
+                const totalRev = [...reviewsByCase.values()].reduce((s, a) => s + a.length, 0);
+                const totalVer = [...verifyByCase.values()].filter(v => v.verificationDate).length;
+                const totalWs = cases.reduce((s, c) => s + ((c.workstations || []).length), 0);
+                summary.textContent = `共 ${cases.length} 筆 case · 審查品項 ${totalRev} 筆 · 已排驗收 ${totalVer} 件 · 工作站 ${totalWs} 個`;
+            }
+        };
+
+        window.masterEditCase = function(caseId) {
+            currentEditingCaseId = caseId;
+            document.getElementById('btn-edit-case')?.click();
+        };
+
+        window.masterDeleteCase = async function(caseId, label) {
+            if (!currentUser) return;
+            if (!confirm(`確定刪除案件「${label}」？\n\n會一併刪除：\n- 該 case 的所有審查品項\n- 工作站紀錄\n- 雲端 supplements\n\n此動作不可復原。`)) return;
+            try {
+                await deleteDoc(doc(db, 'users', currentUser.uid, 'cases', caseId));
+                // 同步刪審查
+                const matchedReviews = (reviewsData || []).filter(r => r.caseId === caseId);
+                for (const r of matchedReviews) {
+                    try { await deleteDoc(doc(db, 'users', currentUser.uid, 'reviews', r.id)); } catch(e) {}
+                }
+                // localStorage supp 也清
+                try {
+                    const supps = JSON.parse(localStorage.getItem('verify_supplements_v1') || '{}');
+                    delete supps[caseId];
+                    localStorage.setItem('verify_supplements_v1', JSON.stringify(supps));
+                } catch(e) {}
+                showToast(`✅ 已刪除「${label}」`);
+                setTimeout(() => window.renderMasterTable(), 500);
+            } catch (err) {
+                showToast(`❌ 刪除失敗：${err.message || err}`);
+            }
+        };
+
+        window.exportMasterTableExcel = function() {
+            if (typeof XLSX === 'undefined') { showToast('XLSX 函式庫未載入'); return; }
+            const cases = (casesData || []).slice().sort((a, b) =>
+                String(a.caseNo||'').localeCompare(String(b.caseNo||''), 'zh-Hant', { numeric: true })
+            );
+            const reviewsByCase = new Map();
+            (reviewsData || []).forEach(r => {
+                if (!reviewsByCase.has(r.caseId)) reviewsByCase.set(r.caseId, []);
+                reviewsByCase.get(r.caseId).push(r);
+            });
+            const verifyByCase = new Map();
+            (verifyData?.cases || []).forEach(v => verifyByCase.set(v.id, v));
+            const rows = cases.map(c => {
+                const reviews = reviewsByCase.get(c.id) || [];
+                const verify = verifyByCase.get(c.id);
+                return {
+                    '編號': c.caseNo || '',
+                    '姓名': c.clientName || '',
+                    '性別': c.clientGender || '',
+                    '年齡': c.clientAge || '',
+                    '生日': formatDateYMD(c.clientDob) || '',
+                    '障別': c.clientDisability || '',
+                    '單位': c.company || '',
+                    '單位地址': c.companyAddress || '',
+                    '聯絡人': c.contactName || c.contactPerson || '',
+                    '電話': c.phone || '',
+                    '類別': c.category || '',
+                    '轄區': c.district || '',
+                    '訪視專員(owner)': c.owner || '',
+                    '轄區承辦(inspector)': c.inspector || '',
+                    '訪視日': formatDateYMD(c.visitDate || c.date) || '',
+                    '訪視日(二)': formatDateYMD(c.visitDate2) || '',
+                    '階段': c.stage || '',
+                    '審查品項數': reviews.length,
+                    '審查品項摘要': reviews.map(r => r.item).filter(Boolean).slice(0,5).join('；') + (reviews.length>5 ? '...' : ''),
+                    '成效驗收日': verify?.verificationDate || '',
+                    '驗收狀態': verify?.status || '',
+                    '工作站數': (c.workstations || []).length,
+                    '工作站清單': (c.workstations || []).map(w => w.name).filter(Boolean).join('；'),
+                    '人員清單數': (c.companyPersonnel || []).length,
+                    '備註': verify?.notes || '',
+                };
+            });
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, '原始資料總表');
+            const ts = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `kaiyuwork_原始資料總表_${ts}.xlsx`);
+            showToast(`✅ 已匯出 ${rows.length} 筆`);
+        };
+
+        // 搜尋輸入即時觸發
+        document.getElementById('master-table-search')?.addEventListener('input', () => window.renderMasterTable());
+
+        // 🆕 一鍵整理同單位 case：依當前診斷的關鍵字找到的同 company case，集中工作站 + 清殘留 + 補地址 + 修日期
+        window.fixUnitConsolidate = async function() {
+            if (!currentUser) { showToast('請先登入'); return; }
+            // 從診斷 modal 標題抽出關鍵字（已查過的範圍）
+            const titleEl = document.getElementById('diag-case-title');
+            const m = titleEl ? titleEl.textContent.match(/「([^」]+)」/) : null;
+            const kw = m ? m[1] : '';
+            if (!kw) { showToast('請先按「診斷案件狀態」查一下單位再執行'); return; }
+            const k = kw.toLowerCase();
+            const cases = (casesData || []).filter(c =>
+                c.company && String(c.company).toLowerCase().includes(k)
+            );
+            if (cases.length === 0) { showToast('找不到同 company 的 case'); return; }
+            // 選主案：caseNo 升序第一個
+            cases.sort((a, b) => String(a.caseNo || '').localeCompare(String(b.caseNo || ''), 'zh-Hant', { numeric: true }));
+            const main = cases[0];
+            // 對齊地址：取任一 case 有的非空地址當主案地址
+            const anyAddr = cases.map(c => c.companyAddress || c.address || '').find(a => String(a).trim());
+            // 整理 plan
+            const allWs = [];
+            const seenWsId = new Set();
+            cases.forEach(c => {
+                (c.workstations || []).forEach(ws => {
+                    if (!ws.id) ws.id = 'ws_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+                    if (seenWsId.has(ws.id)) return;
+                    seenWsId.add(ws.id);
+                    allWs.push(ws);
+                });
+            });
+            const cleanPersonnel = (main.companyPersonnel || []).filter(p => !/工作站案件/.test(String(p.name || '')));
+            // confirm
+            const planLines = [
+                `合併 ${cases.length} 筆同單位 case → 集中到主案：${main.caseNo} ${main.clientName}`,
+                `工作站總數：${allWs.length} 個（從各 case 集中）`,
+                `主案 personnel：${cleanPersonnel.length} 人（移除「(工作站案件)」殘留）`,
+                anyAddr ? `地址 propagate：${anyAddr}` : '無共用地址可 propagate',
+                'visitDate 強制轉 YYYY-MM-DD 字串',
+                '',
+                '其他 case 的 workstations 會清空（資料已搬到主案，無丟失）',
+                '',
+                '確定執行？'
+            ];
+            if (!confirm(planLines.join('\n'))) return;
+            let ok = 0, fail = 0;
+            for (const c of cases) {
+                try {
+                    const patch = { updatedAt: serverTimestamp() };
+                    // 工作站集中：主案接全部、其他清空
+                    patch.workstations = (c.id === main.id) ? allWs : [];
+                    // 主案 personnel 清掉殘留
+                    if (c.id === main.id) patch.companyPersonnel = cleanPersonnel;
+                    // 地址 propagate（只在沒地址時補）
+                    if (anyAddr && !(c.companyAddress || c.address)) patch.companyAddress = anyAddr;
+                    // visitDate normalize
+                    const vd = c.visitDate || c.date;
+                    if (vd) {
+                        const norm = formatDateYMD(vd);
+                        if (norm && norm !== vd) patch.visitDate = norm;
+                    }
+                    await updateDoc(doc(db, 'users', currentUser.uid, 'cases', c.id), patch);
+                    // 同步 in-memory
+                    Object.assign(c, patch);
+                    ok++;
+                } catch (err) {
+                    console.warn('[fixUnitConsolidate] 失敗', c.id, err);
+                    fail++;
+                }
+            }
+            showToast(`✅ 整理 ${ok} 筆${fail ? ` / 失敗 ${fail}` : ''}。重整看效果`);
+            document.getElementById('diag-case-modal')?.classList.add('hidden');
+            if (typeof renderCaseList === 'function') renderCaseList();
+        };
+
+        window.diagCopyToClipboard = function() {
+            const txt = document.getElementById('diag-case-body')?.textContent || '';
+            if (!txt) return;
+            try {
+                navigator.clipboard.writeText(txt).then(() => showToast('✓ 已複製全文'));
+            } catch(e) {
+                // fallback
+                const ta = document.createElement('textarea');
+                ta.value = txt;
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); showToast('✓ 已複製'); } catch(e2) { showToast('❌ 複製失敗'); }
+                document.body.removeChild(ta);
+            }
+        };
+
         // 🆕 console 診斷工具：在瀏覽器 F12 console 直接呼叫 diagPrimary() 看主責判斷狀況
         window.diagPrimary = function() {
             const isDis = (c) => /身心障礙|單側/.test(String(c.category || ''));
@@ -3299,12 +3677,28 @@
         // Excel 序列日期數字 → YYYY-MM-DD（1900 系統；遇到 <5000 視為民國年字串交回原樣）
         function excelSerialToISO(n) {
             if (n == null || n === '') return '';
+            // 🆕 SheetJS 對 .xls 日期 cell 可能直接回 Date object（不是 serial number）
+            //    若不偵測，Number(Date) 會變成 timestamp ms（負數絕對值極大），落入 < 5000 分支變亂碼
+            if (n instanceof Date) {
+                if (isNaN(n.getTime())) return '';
+                const pad = x => String(x).padStart(2, '0');
+                return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+            }
             const v = Number(n);
             if (Number.isNaN(v)) {
                 // 如果已是字串就用 parseMeetingDate 處理（含民國年）
                 const s = String(n).trim();
                 if (!s) return '';
                 return parseMeetingDate(s) || s;
+            }
+            // 🆕 防呆：負數絕對值極大（>= 1 億）→ 不是合理 Excel serial（可能是 timestamp ms 誤傳），fallback 試 Date 解
+            if (Math.abs(v) >= 1e8) {
+                const d = new Date(v);
+                if (!isNaN(d.getTime())) {
+                    const pad = x => String(x).padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+                }
+                return '';
             }
             if (v < 5000) return String(v); // 不是 Excel 序號（可能是月資、年齡等純數字）
             // Excel 1900-based serial：以 1899-12-30 為基準（避免 1900 閏年 bug）
@@ -3325,7 +3719,8 @@
             return '';
         }
         // 把 Excel 標頭字串正規化（去空白與換行）以利比對
-        function _normHeader(s) { return String(s || '').replace(/[\s\n\r]+/g, '').trim(); }
+        // 標題正規化：移除所有空白（含半形 \s / 全形 　）+ 換行，比對時不被「接案     人員」「接案\n人員」這種跳段差異干擾
+        function _normHeader(s) { return String(s || '').replace(/[\s　\n\r]+/g, '').trim(); }
         // 根據 FULL_CASE_FIELDS 與實際標頭列，建 index map: headerIdx → fieldKey
         function buildFieldIndexMap(headerRow) {
             const map = {}; // colIdx → key
@@ -3939,15 +4334,20 @@
             }
         }
 
-        function applyDistrictOwnerToForm() {
-            const district = document.getElementById('form-district')?.value || '';
-            if (!district) return;
-            const owner = getDistrictOwnerByName(district);
-            if (owner) {
-                const ownerSel = document.getElementById('form-owner');
-                if (ownerSel) ownerSel.value = owner;
+        // 反向：選承辦（form-inspector）→ 反查 settings.districts.find(d=>d.owner===val)?.name → 帶 form-district
+        // （凱宇 2026-05-05 對應修正：原本「轄區→帶 owner」改成「inspector→帶轄區」）
+        function applyInspectorDistrictToForm() {
+            const inspector = (document.getElementById('form-inspector')?.value || '').trim();
+            if (!inspector) return;
+            const list = Array.isArray(settings?.districts) ? settings.districts : [];
+            const hit = list.find(d => String(d.owner || '').trim() === inspector);
+            if (hit?.name) {
+                const districtSel = document.getElementById('form-district');
+                if (districtSel) districtSel.value = hit.name;
             }
         }
+        // 保留舊函數但 noop（避免其他地方呼叫炸掉）
+        function applyDistrictOwnerToForm() { /* deprecated 2026-05-05 — 改用 applyInspectorDistrictToForm */ }
 
         function autoAssignDistrictByLocation() {
             const workLocation = document.getElementById('form-work-location')?.value || '';
@@ -3989,7 +4389,8 @@
             saveSettings();
         };
 
-        document.getElementById('form-district')?.addEventListener('change', applyDistrictOwnerToForm);
+        // 凱宇 2026-05-05 對應修正：選承辦（form-inspector）→ 自動帶轄區（form-district）
+        document.getElementById('form-inspector')?.addEventListener('change', applyInspectorDistrictToForm);
         document.getElementById('form-work-location')?.addEventListener('blur', autoAssignDistrictByLocation);
         document.getElementById('form-company')?.addEventListener('blur', autoAssignDistrictByLocation);
 
@@ -4078,6 +4479,155 @@
             };
             const data = await fetchGeminiWithFallback(apiKey, payload);
             return JSON.parse(data.candidates[0].content.parts[0].text);
+        }
+
+        // ==========================================================================
+        // 🆕 Phase 1 雲端備份系統（凱宇 2026-05-05）
+        //   A. Daily 自動備份 → Google Drive (透過 GAS)，跟 Firestore 解耦防全壞
+        //   B. Monthly 提醒下載本地 .json 副本（雙保險）
+        //   過濾 base64 大檔（音檔/圖片）以縮小體積
+        // ==========================================================================
+        const BACKUP_LAST_DAILY_KEY = 'kaiyuwork.lastDailyBackupAt';
+        const BACKUP_LAST_LOCAL_KEY = 'kaiyuwork.lastLocalDownloadAt';
+        const BACKUP_DAILY_INTERVAL_MS = 22 * 3600 * 1000;   // 22 小時（避免時差跳過）
+
+        function _stripBigBase64(obj) {
+            if (!obj || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) return obj.map(_stripBigBase64);
+            if (obj instanceof Date) return obj.toISOString();
+            const out = {};
+            for (const [k, v] of Object.entries(obj)) {
+                // 跳過已知大檔欄位
+                if (/base64|audioData|imageData|previewBase64/i.test(k)) continue;
+                // 字串太大（> 50KB）視為 base64 內容，跳過（保留 url 但拿掉 data:image/... 那種）
+                if (typeof v === 'string') {
+                    if (v.length > 50000) continue;
+                    if (v.startsWith('data:') && v.length > 5000) continue;
+                }
+                out[k] = _stripBigBase64(v);
+            }
+            return out;
+        }
+
+        function _buildBackupJson() {
+            return {
+                metadata: {
+                    version: 1,
+                    backupType: 'kaiyuwork-phase1',
+                    createdAt: new Date().toISOString(),
+                    uid: currentUser?.uid || '',
+                    email: currentUser?.email || '',
+                    counts: {
+                        cases: (casesData || []).length,
+                        reviews: (reviewsData || []).length,
+                        meetings: (meetingsData || []).length,
+                    }
+                },
+                casesData: (casesData || []).map(_stripBigBase64),
+                reviewsData: (reviewsData || []).map(_stripBigBase64),
+                meetingsData: (meetingsData || []).map(_stripBigBase64),
+                scheduleData: _stripBigBase64(typeof scheduleData !== 'undefined' ? scheduleData : {}),
+                settings: _stripBigBase64(settings || {}),
+                verifySupplements: (() => {
+                    try { return JSON.parse(localStorage.getItem('verify_supplements_v1') || '{}'); }
+                    catch(e) { return {}; }
+                })(),
+                manualSchedules: (typeof manualSchedules !== 'undefined' ? manualSchedules : []).map(_stripBigBase64),
+            };
+        }
+
+        window.doDailyBackup = async function(force) {
+            if (!currentUser) return { skipped: 'no-user' };
+            if (!settings?.gasUrl) {
+                if (force) showToast('⚠ 請先在「系統設定」填 GAS URL 才能備份到 Drive');
+                return { skipped: 'no-gas-url' };
+            }
+            const last = parseInt(localStorage.getItem(BACKUP_LAST_DAILY_KEY) || '0');
+            const now = Date.now();
+            if (!force && (now - last) < BACKUP_DAILY_INTERVAL_MS) {
+                return { skipped: 'too-soon', last: new Date(last) };
+            }
+            try {
+                const json = _buildBackupJson();
+                const blob = new Blob([JSON.stringify(json)], { type: 'application/json' });
+                const ts = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, '');
+                const fileName = `kaiyuwork_backup_${ts}.json`;
+                await uploadToGoogleDrive(blob, fileName);
+                localStorage.setItem(BACKUP_LAST_DAILY_KEY, String(now));
+                if (force) showToast(`✅ 雲端備份完成 (${(blob.size/1024).toFixed(1)} KB)`);
+                else console.log(`[Daily Backup] ${fileName} (${(blob.size/1024).toFixed(1)} KB)`);
+                _refreshBackupStatus();
+                return { ok: true, fileName, size: blob.size };
+            } catch (err) {
+                console.warn('[doDailyBackup] 失敗', err);
+                if (force) showToast(`⚠ 備份失敗：${err.message || err}`);
+                return { error: err.message || String(err) };
+            }
+        };
+
+        window.downloadBackupLocal = function() {
+            const json = _buildBackupJson();
+            const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const ts = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `kaiyuwork_本地備份_${ts}.json`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+            localStorage.setItem(BACKUP_LAST_LOCAL_KEY, String(Date.now()));
+            showToast(`✅ 本地備份已下載 (${(blob.size/1024).toFixed(1)} KB)`);
+            _refreshBackupStatus();
+        };
+
+        function _showMonthlyReminder() {
+            if (document.getElementById('backup-monthly-banner')) return;
+            const banner = document.createElement('div');
+            banner.id = 'backup-monthly-banner';
+            banner.className = 'fixed top-20 right-4 z-[100] max-w-sm bg-amber-50 border-2 border-amber-300 rounded-xl shadow-2xl p-4';
+            banner.innerHTML = `
+                <div class="flex items-start gap-2">
+                    <i class="fa-solid fa-cloud-arrow-down text-amber-600 text-xl mt-0.5 shrink-0"></i>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-bold text-amber-900 text-sm">📥 月度本地備份提醒</p>
+                        <p class="text-xs text-amber-800 mt-1 leading-relaxed">為避免雲端故障資料全失，建議每月下載一份本地 JSON 備份保留</p>
+                        <div class="mt-2 flex gap-2">
+                            <button onclick="window.downloadBackupLocal(); document.getElementById('backup-monthly-banner').remove()" class="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded shadow active:scale-95">
+                                <i class="fa-solid fa-download mr-1"></i>下載備份
+                            </button>
+                            <button onclick="document.getElementById('backup-monthly-banner').remove()" class="text-xs font-bold text-amber-700 hover:text-amber-900 px-2 py-1.5">稍後</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(banner);
+        }
+
+        function _checkMonthlyReminder() {
+            const last = parseInt(localStorage.getItem(BACKUP_LAST_LOCAL_KEY) || '0');
+            const lastDate = new Date(last);
+            const now = new Date();
+            const days = (now - lastDate) / (24 * 3600 * 1000);
+            if (days >= 28) _showMonthlyReminder();
+        }
+
+        function _refreshBackupStatus() {
+            const el = document.getElementById('backup-status-display');
+            if (!el) return;
+            const lastD = parseInt(localStorage.getItem(BACKUP_LAST_DAILY_KEY) || '0');
+            const lastL = parseInt(localStorage.getItem(BACKUP_LAST_LOCAL_KEY) || '0');
+            const fmt = (t) => t ? new Date(t).toLocaleString('zh-TW', { hour12: false }).replace(/:\d{2}$/, '') : '從未';
+            el.innerHTML = `雲端: <b class="${lastD ? 'text-emerald-700':'text-rose-600'}">${fmt(lastD)}</b> · 本地: <b class="${lastL ? 'text-emerald-700':'text-amber-600'}">${fmt(lastL)}</b>`;
+        }
+
+        // 由 onAuthStateChanged 在資料載入後 5 秒呼叫一次
+        async function _initBackupSystem() {
+            try {
+                _refreshBackupStatus();
+                _checkMonthlyReminder();
+                await window.doDailyBackup(false);
+            } catch (e) { console.warn('[_initBackupSystem]', e); }
         }
 
         async function uploadToGoogleDrive(fileBlob, fileName) {
@@ -4183,6 +4733,8 @@
                     vCurrentUid = user.uid;   // 成效驗收模組同步
                     overlay.classList.add('opacity-0', 'pointer-events-none');
                     setTimeout(() => overlay.classList.add('hidden'), 300);
+                    // 🆕 Phase 1 備份系統：登入後 8 秒（等資料 onSnapshot 載入）trigger daily backup + monthly reminder
+                    setTimeout(() => { try { _initBackupSystem(); } catch(e) { console.warn(e); } }, 8000);
                     
                     statusEl.innerHTML = `<img src="${user.photoURL || ''}" class="w-6 h-6 md:w-7 md:h-7 rounded-full border-2 border-white bg-white"> <span class="hidden md:inline font-bold">${user.displayName || '已登入'}</span> <i class="fa-solid fa-right-from-bracket ml-1 text-xs opacity-80"></i>`;
                     statusEl.className = "bg-blue-700 hover:bg-blue-800 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-white shadow-md font-bold text-xs md:text-sm flex items-center gap-2 cursor-pointer transition-colors";
@@ -4454,11 +5006,21 @@
                 return comp.includes(term) || client.includes(term);
             });
             // 🆕 依訪視日期 DESC（最新在前）；非日期（例：「當日請假」）視為空值，排序到最後
+            //    同日期者再按 caseNo 升序（AG02501→AG02506），避免亂序
             const _dateKey = (c) => {
                 const f = formatDateYMD(c.visitDate || c.date);
                 return /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : '';
             };
-            filtered.sort((a, b) => _dateKey(b).localeCompare(_dateKey(a)));
+            const _caseNoKey = (c) => String(c.caseNo || '').trim();
+            filtered.sort((a, b) => {
+                const dCmp = _dateKey(b).localeCompare(_dateKey(a));
+                if (dCmp !== 0) return dCmp;
+                const na = _caseNoKey(a), nb = _caseNoKey(b);
+                if (!na && !nb) return 0;
+                if (!na) return 1;
+                if (!nb) return -1;
+                return na.localeCompare(nb, 'zh-Hant', { numeric: true });
+            });
 
             currentFilteredCases = filtered;
 
@@ -4497,8 +5059,16 @@
                 if (!unitGroupsTmp.has(key)) unitGroupsTmp.set(key, []);
                 unitGroupsTmp.get(key).push(c);
             }
-            // 排序每單位成員
-            for (const arr of unitGroupsTmp.values()) arr.sort((a, b) => _dKey(b).localeCompare(_dKey(a)));
+            // 排序每單位成員：日期 DESC + 同日期再按 caseNo 升序（AG02501→AG02506）
+            for (const arr of unitGroupsTmp.values()) arr.sort((a, b) => {
+                const dCmp = _dKey(b).localeCompare(_dKey(a));
+                if (dCmp !== 0) return dCmp;
+                const na = String(a.caseNo || '').trim(), nb = String(b.caseNo || '').trim();
+                if (!na && !nb) return 0;
+                if (!na) return 1;
+                if (!nb) return -1;
+                return na.localeCompare(nb, 'zh-Hant', { numeric: true });
+            });
             // 排序單位（最新訪視日期的單位排前面）
             const unitGroups = new Map([...unitGroupsTmp.entries()].sort((a, b) => {
                 const amax = a[1].reduce((m, c) => _dKey(c) > m ? _dKey(c) : m, '');
@@ -5398,11 +5968,20 @@
                 groupsTmp.set(uname, all);
             }
             // 🆕 單位內部與單位間皆按訪視日期 DESC；非日期文字（「當日請假」等）視為空
+            //     同日期者再按 caseNo 升序（AG02501 → AG02506），避免亂序
             const _dKey3 = (c) => {
                 const f = formatDateYMD(c.visitDate || c.date);
                 return /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : '';
             };
-            for (const arr of groupsTmp.values()) arr.sort((a, b) => _dKey3(b).localeCompare(_dKey3(a)));
+            for (const arr of groupsTmp.values()) arr.sort((a, b) => {
+                const dCmp = _dKey3(b).localeCompare(_dKey3(a));
+                if (dCmp !== 0) return dCmp;
+                const na = String(a.caseNo || '').trim(), nb = String(b.caseNo || '').trim();
+                if (!na && !nb) return 0;
+                if (!na) return 1;
+                if (!nb) return -1;
+                return na.localeCompare(nb, 'zh-Hant', { numeric: true });
+            });
             const groups = new Map([...groupsTmp.entries()].sort((a, b) => {
                 const amax = a[1].reduce((m, c) => _dKey3(c) > m ? _dKey3(c) : m, '');
                 const bmax = b[1].reduce((m, c) => _dKey3(c) > m ? _dKey3(c) : m, '');
@@ -6990,6 +7569,57 @@
         let elderStopRecordingResolver = null;
         let elderWsAutoSaveTimer = null;
 
+        // 從同單位（同 company）的所有中高/勞通 case 自動建立 personnel 清單
+        // 用於取代手動匯入 Excel：當 c.companyPersonnel 為空時 fallback 用這個
+        // 寬鬆比對：不檢查 isPrimaryCase（單位裡可能有同事主責的 case，仍要列入）
+        //          只排除身障類 case（caseNo JA/UH 開頭、category 含「身障/身心障礙」）
+        function _elderAutoPersonnel(c) {
+            if (!c) return [];
+            const targetCompany = String(c.company || '').trim();
+            if (!targetCompany) return [];
+            // 公司名正規化：trim、全形空白 → 半形、合併空白、再 trim
+            const normCompany = (s) => String(s || '')
+                .replace(/[　]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const target = normCompany(targetCompany);
+            const sameUnit = (casesData || []).filter(x => {
+                if (normCompany(x.company) !== target) return false;
+                // 排除身障類（不應出現在中高齡工作站清單）
+                const cn = String(x.caseNo || '').toUpperCase();
+                if (cn.startsWith('JA') || cn.startsWith('UH')) return false;
+                const cat = String(x.category || '');
+                if (cat.includes('身心障礙') || cat.includes('身障')) return false;
+                return true;
+            });
+            // 按 caseNo 升序（AG02501 → AG02506），無編號排最後
+            sameUnit.sort((a, b) => {
+                const na = String(a.caseNo || '').trim(), nb = String(b.caseNo || '').trim();
+                if (!na && !nb) return 0;
+                if (!na) return 1;
+                if (!nb) return -1;
+                return na.localeCompare(nb, 'zh-Hant', { numeric: true });
+            });
+            // Debug：列出沒被帶進來的同 company case，方便診斷羅雅禎類問題
+            try {
+                const allSameCo = (casesData || []).filter(x => normCompany(x.company) === target);
+                const excluded = allSameCo.filter(x => !sameUnit.includes(x));
+                if (excluded.length > 0) {
+                    console.log('[_elderAutoPersonnel] 同 company 被排除:', excluded.map(x => ({
+                        name: x.clientName, caseNo: x.caseNo, category: x.category, owner: x.owner
+                    })));
+                }
+            } catch(e) {}
+            return sameUnit.map(x => ({
+                id: x.id,                                       // 用 case id 當 personnel id（穩定 + 跨重建一致）
+                name: (x.clientName || '').trim() || '(無姓名)',
+                gender: x.clientGender || x.gender || '',
+                age: x.clientAge || '',
+                caseNo: x.caseNo || '',
+                disability: x.clientDisability || '',
+            }));
+        }
+
         function openElderWorkspace(caseId) {
             currentElderCaseId = caseId;
             currentWorkstationId = null;
@@ -6997,7 +7627,8 @@
             if (!c) return;
 
             document.getElementById('elder-ws-company').textContent = c.company || '未命名企業';
-            document.getElementById('elder-ws-meta').textContent = `初訪日：${formatDateYMD(c.visitDate) || '-'}　主責：${c.owner || ''}`;
+            // 訪視專員 = owner（資料上 owner = 接案/訪視人員 = 凱宇本人）；inspector 是承辦（顏雅玲等同事），不放這
+            document.getElementById('elder-ws-meta').textContent = `初訪日：${formatDateYMD(c.visitDate) || '-'}　訪視專員：${getCaseOwner(c) || '蔡凱宇'}`;
             // 申請書迴紋針
             updateAppFileBtn('elder', caseId, c.applicationFileUrl || '');
             const elderAddressEl = document.getElementById('elder-company-address');
@@ -7009,8 +7640,38 @@
             const elderBadge = document.getElementById('elder-auth-badge');
             if (elderBadge) elderBadge.textContent = c.category || '中高齡';
 
-            renderElderWorkstationList(c.workstations || []);
-            renderElderCompanyPersonnel(c.companyPersonnel || [], c.workstations || []);
+            // 🆕 自動把同單位個案帶入 personnel — 取代手動匯入 Excel 流程
+            // 每次開啟都用最新 casesData 重算覆蓋（避免新增/改 company 的個案漏掉）
+            // 跟現有不一致才寫回 Firestore（避免每次開啟都 write）
+            const _auto = _elderAutoPersonnel(c);
+            if (_auto.length > 0) {
+                const _existing = c.companyPersonnel || [];
+                const _same = _existing.length === _auto.length
+                    && _existing.every((p, i) => p && _auto[i] && p.id === _auto[i].id);
+                c.companyPersonnel = _auto;
+                if (!_same && currentUser) {
+                    updateDoc(doc(db, 'users', currentUser.uid, 'cases', c.id), {
+                        companyPersonnel: _auto,
+                        updatedAt: serverTimestamp()
+                    }).catch(err => console.warn('auto-save companyPersonnel 失敗', err));
+                }
+            }
+            // 🆕 工作站「自動借閱」：當前 case 沒 workstations 時，從同單位其他 case 借來顯示
+            // 純 view 層 fallback，不寫回 Firestore（避免雙寫）— 開啟工作區看得到所有工作站
+            let _displayWs = c.workstations || [];
+            if (_displayWs.length === 0 && c.company) {
+                const sameCo = (casesData || []).filter(x =>
+                    x.id !== c.id &&
+                    String(x.company || '').trim() === String(c.company).trim() &&
+                    Array.isArray(x.workstations) && x.workstations.length > 0
+                );
+                if (sameCo.length > 0) {
+                    _displayWs = sameCo.flatMap(x => x.workstations || []);
+                    console.log(`[借工作站] 案件 ${c.caseNo || c.id} 沒 workstations，借來 ${_displayWs.length} 個（來自 ${sameCo.length} 筆同單位 case）`);
+                }
+            }
+            renderElderWorkstationList(_displayWs);
+            renderElderCompanyPersonnel(c.companyPersonnel || [], _displayWs);
             renderElderEquipmentAssignment(c.sharedEquipment || '', c.companyPersonnel || [], c.equipmentAssignments || {});
             document.getElementById('elder-empty-state').classList.remove('hidden');
             document.getElementById('elder-ws-detail').classList.add('hidden');
@@ -7515,9 +8176,9 @@
             addIf('轄區', c.district);
             addIf('接案日期', c.intakeDate);
             addIf('初訪日期', c.visitDate);
-            addIf('訪視專員', c.inspector);
+            addIf('訪視專員', c.owner);
             addIf('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
-            addIf('轄區承辦', c.owner);
+            addIf('轄區承辦', c.inspector);
             addIf('訪視委員', c.visitors);
 
             addSection('共用申請設備');
@@ -8111,9 +8772,9 @@
             addIf('個案/工作站', c.clientName);
             addIf('接案日', c.intakeDate);
             addIf('初訪日', c.visitDate || c.date);
-            addIf('訪視專員', c.inspector);
+            addIf('訪視專員', c.owner);
             addIf('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
-            addIf('轄區承辦', c.owner);
+            addIf('轄區承辦', c.inspector);
             addIf('訪視委員', c.visitors);
             addIf('完成報告', c.reportCompleted ? '是' : '');
             addIf('完成時間', c.reportCompletedAt);
@@ -8513,19 +9174,20 @@
             const category = document.querySelector('input[name="form-category"]:checked')?.value || '其他';
             const visitors = Array.from(document.querySelectorAll('input[name="chk-visitor"]:checked')).map(cb => cb.value).join('、');
             const district = (document.getElementById('form-district')?.value || '').trim();
+            // 凱宇 2026-05-05 對應修正：form-owner = 訪視專員（多為凱宇本人）；form-inspector = 轄區承辦
             const formOwnerRaw = (document.getElementById('form-owner')?.value || '').trim();
-            let owner = (formOwnerRaw || PRIMARY_OWNER).trim();
-            const districtOwner = getDistrictOwnerByName(district);
-            // 🆕 轄區規則覆蓋 owner 時提醒一下（不擋送出）；只在實際造成不同時才提醒
-            if (districtOwner && formOwnerRaw && districtOwner !== formOwnerRaw) {
-                showToast(`⚠️ 轄區「${district}」規則把承辦改為「${districtOwner}」（原選「${formOwnerRaw}」）。如要保留原值，請至系統設定調整轄區規則。`);
-            }
-            if (districtOwner) owner = districtOwner;
+            const owner = (formOwnerRaw || PRIMARY_OWNER).trim();
             const inspector = (document.getElementById('form-inspector')?.value || '').trim();
+            // 🆕 轄區規則的 owner（settings.districts[i].owner）= 該轄區的承辦人，對應 inspector 欄位
+            //    若使用者選的 inspector 跟轄區規則不一致 → 提醒（不強制覆蓋，使用者選的優先）
+            const districtOwner = getDistrictOwnerByName(district);
+            if (districtOwner && inspector && districtOwner !== inspector) {
+                showToast(`⚠️ 轄區「${district}」規則的承辦是「${districtOwner}」（你選的是「${inspector}」）。如要保留請至設定改規則。`);
+            }
             // 🆕 協訪專員（可複選）
             const coInspectors = Array.from(document.querySelectorAll('input[name="form-co-inspectors"]:checked')).map(cb => cb.value);
-            // 🆕 訪視專員未填→提醒（不擋送出）
-            if (!inspector) {
+            // 🆕 訪視專員（凱宇本人）未填→提醒（不擋送出）
+            if (!formOwnerRaw) {
                 showToast('⚠️ 提醒：「訪視專員」尚未選擇，案件已存但建議補填。');
             }
             const hireDateNormalized = normalizeHireDateInput(document.getElementById('form-hire-date')?.value || '');
@@ -10436,9 +11098,7 @@ ${rawDraft}
             document.getElementById('elder-btn-delete-ws')?.click();
         });
         document.getElementById('elder-btn-copy-prev-record')?.addEventListener('click', copyPreviousElderRecord);
-        document.getElementById('elder-btn-add-ws-inline')?.addEventListener('click', () => {
-            document.getElementById('elder-btn-add-ws')?.click();
-        });
+        // (已移除) elder-btn-add-ws-inline 重複新增按鈕，統一到左欄 elder-btn-add-ws
         document.getElementById('elder-btn-submit-record-v2')?.addEventListener('click', async () => {
             try { await submitCurrentElderRecord(); } catch (e) { alert(e.message || e); }
         });
@@ -10524,9 +11184,9 @@ ${rawDraft}
             addKV('公司', c.company);
             addKV('訪視日期', c.visitDate);
             addKV('轄區', c.district);
-            addKV('訪視專員', c.inspector);
+            addKV('訪視專員', c.owner);
             addKV('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
-            addKV('轄區承辦', c.owner);
+            addKV('轄區承辦', c.inspector);
             addKV('訪視委員', c.visitors);
 
             (c.workstations || []).forEach((ws, idx) => {
@@ -12596,12 +13256,13 @@ ${rawDraft}
         // 從訪視紀錄抓行程（🆕 只取凱宇主責案件）
         function buildSchedulesFromCases() {
             const out = [];
+            // 訪視：來源 casesData.visitDate（凱宇主責）
             casesData.filter(isPrimaryCase).forEach(c => {
                 const visitDate = c.visitDate || c.date;
                 if (visitDate) {
                     out.push({
                         id: 'v-' + c.id,
-                        date: visitDate,
+                        date: formatDateYMD(visitDate) || visitDate,
                         type: '訪視',
                         region: c.district || c.region || '',
                         location: c.companyAddress || c.workLocation || c.company || '',
@@ -12612,22 +13273,28 @@ ${rawDraft}
                         source: 'cases'
                     });
                 }
-                // 成效追蹤日期（取自 outcome summary）
-                const oc = outcomeCacheMap[c.id];
-                if (oc && oc['成效追蹤日期']) {
-                    out.push({
-                        id: 'o-' + c.id,
-                        date: oc['成效追蹤日期'],
-                        type: '成效',
-                        region: c.district || '',
-                        location: c.company || '',
-                        caseName: c.clientName || c.company || '',
-                        caseNo: c.caseNo || '',
-                        note: '成效追蹤',
-                        hours: '',
-                        source: 'outcome'
-                    });
-                }
+            });
+            // 🆕 成效：改從 verifyData.cases.verificationDate 抓（之前用 outcomeCacheMap 已棄用，整段一直 0 件）
+            // 確保 verifyData 已同步（vSyncFromCases 只在進入成效驗收 tab 才跑，這裡也要確保）
+            if (typeof vSyncFromCases === 'function' && (!verifyData?.cases?.length)) {
+                try { vSyncFromCases(); } catch (e) { console.warn('[buildSchedulesFromCases] vSyncFromCases failed', e); }
+            }
+            (verifyData?.cases || []).forEach(vc => {
+                const vd = formatDateYMD(vc.verificationDate);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(vd)) return;
+                const raw = (casesData || []).find(x => x.id === vc.id);
+                out.push({
+                    id: 'o-' + vc.id,
+                    date: vd,
+                    type: '成效',
+                    region: vc.district || raw?.district || '',
+                    location: vc.address || raw?.companyAddress || vc.unit || raw?.company || '',
+                    caseName: vc.clientName || raw?.clientName || vc.unit || '',
+                    caseNo: vc.caseNo || raw?.caseNo || '',
+                    note: '成效驗收',
+                    hours: '',
+                    source: 'verify'
+                });
             });
             return out;
         }
@@ -12993,9 +13660,10 @@ ${rawDraft}
             return '其他';
         }
         // category phrase + 評估類型 → 訪視內容一句話
+        // 凱宇 2026-05-05 修正：成效改為「成效訪視評估」（多「訪視」二字）
         function _tripContentPhrase(cat, mode) {
-            // mode: 'visit' → 訪視評估, 'outcome' → 成效評估
-            const suffix = mode === 'outcome' ? '成效評估' : '訪視評估';
+            // mode: 'visit' → 訪視評估, 'outcome' → 成效訪視評估
+            const suffix = mode === 'outcome' ? '成效訪視評估' : '訪視評估';
             const t = _tripCategoryType(cat);
             if (t === '身障')  return `身心障礙者職務再設計${suffix}`;
             if (t === '中高')  return `中高齡者職務再設計${suffix}`;
@@ -13060,7 +13728,8 @@ ${rawDraft}
         }
         function _docxTc(text, width_dxa, opts = {}) {
             const tcPr = `<w:tcPr><w:tcW w:w="${width_dxa}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>`;
-            const pPr = `<w:pPr><w:jc w:val="${opts.align || 'center'}"/><w:rPr><w:rFonts w:ascii="DFKai-SB" w:eastAsia="DFKai-SB" w:hAnsi="DFKai-SB"/></w:rPr></w:pPr>`;
+            // 凱宇 2026-05-05：表格 cell 段落 — 段後距 0、行距「最小行高」（atLeast 240 twips ≈ 12pt）
+            const pPr = `<w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="atLeast"/><w:jc w:val="${opts.align || 'center'}"/><w:rPr><w:rFonts w:ascii="DFKai-SB" w:eastAsia="DFKai-SB" w:hAnsi="DFKai-SB"/></w:rPr></w:pPr>`;
             const rPr = ['<w:rFonts w:ascii="DFKai-SB" w:eastAsia="DFKai-SB" w:hAnsi="DFKai-SB"/>'];
             if (opts.bold) rPr.push('<w:b/>');
             const rPrXml = `<w:rPr>${rPr.join('')}</w:rPr>`;
@@ -13082,8 +13751,10 @@ ${rawDraft}
             </w:tblBorders>`;
             const tblPr = `<w:tblPr><w:tblW w:w="5000" w:type="pct"/>${borders}</w:tblPr>`;
             const grid = `<w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`;
-            const headerTr = `<w:tr>${header.map((t, i) => _docxTc(t, widths[i], { bold: true, align: 'center' })).join('')}</w:tr>`;
-            const bodyTrs = rows.map(row => `<w:tr>${row.map((cellText, i) => _docxTc(cellText, widths[i], { align: i === 0 ? 'center' : 'left' })).join('')}</w:tr>`).join('');
+            // 凱宇 2026-05-05：列高 1.2cm = 1.2 × 567 ≈ 680 twips（hRule="atLeast" 內容多會自動撐高）
+            const trPr = `<w:trPr><w:trHeight w:val="680" w:hRule="atLeast"/></w:trPr>`;
+            const headerTr = `<w:tr>${trPr}${header.map((t, i) => _docxTc(t, widths[i], { bold: true, align: 'center' })).join('')}</w:tr>`;
+            const bodyTrs = rows.map(row => `<w:tr>${trPr}${row.map((cellText, i) => _docxTc(cellText, widths[i], { align: i === 0 ? 'center' : 'left' })).join('')}</w:tr>`).join('');
             return `<w:tbl>${tblPr}${grid}${headerTr}${bodyTrs}</w:tbl>`;
         }
         async function _tripPackDocx(documentXml) {
@@ -13123,7 +13794,8 @@ ${rawDraft}
         function _tripBuildGroups(dateStr, mode) {
             // 傳回: [{ unitName, address, members: [{name, category}], categoryType, cityDistrict, time }]
             const groups = new Map(); // key = company.trim() (身障個人 = clientName+id)
-            if (mode === 'outcome') {
+            // 🆕 'mixed' 等同 outcome 主路徑（先抓成效），最後再 fallback 把當天純訪視案件補進來（block 末尾）
+            if (mode === 'outcome' || mode === 'mixed') {
                 const dayCases = (verifyData?.cases || []).filter(c => c.verificationDate === dateStr);
                 const sched = (typeof scheduleData !== 'undefined' ? scheduleData[dateStr] : null) || { entries: {} };
                 for (const c of dayCases) {
@@ -13147,6 +13819,32 @@ ${rawDraft}
                         });
                     }
                     groups.get(key).members.push({ name: c.clientName || '', category: cat });
+                }
+                // 🆕 合併訪視 case：當天 visitDate 但沒對應 verify entry 的，也列入成效訪視行程表
+                const verifyAddrs = new Set(dayCases.map(c => (c.address || '').trim()).filter(Boolean));
+                const isUnit = (c) => c && (c.category === '中高齡（工作站）' || c.category === '中高齡及高齡者' || c.category === '勞工就業通');
+                const visitCases = (casesData || []).filter(c =>
+                    isPrimaryCase(c) && formatDateYMD(c.visitDate || c.date) === dateStr
+                );
+                for (const c of visitCases) {
+                    const addr = c.address || c.companyAddress || c.workLocation || '';
+                    if (addr && verifyAddrs.has(addr.trim())) continue;  // 同地址已有 verify，跳過避免重複
+                    const key = isUnit(c) ? `unit_${(c.company || '').trim() || c.id}` : `dis_${c.id}`;
+                    if (!groups.has(key)) {
+                        const time = (sched.entries?.[`visit_${c.id}`] || {}).visitTime || '';
+                        groups.set(key, {
+                            unitName: isUnit(c) ? (c.company || '') : (c.clientName || ''),
+                            address: addr,
+                            members: [],
+                            categoryType: _tripCategoryType(c.category),
+                            cityDistrict: _tripCityDistrict(addr),
+                            time,
+                            category: c.category || '',
+                            inspector: String(c.inspector || '').trim(),
+                            _isVisit: true,
+                        });
+                    }
+                    groups.get(key).members.push({ name: c.clientName || '', category: c.category || '' });
                 }
             } else {
                 // visit mode：從 casesData 抓 visitDate === dateStr 的凱宇案件
@@ -13172,6 +13870,32 @@ ${rawDraft}
                         });
                     }
                     groups.get(key).members.push({ name: c.clientName || '', category: c.category || '' });
+                }
+            }
+            // 🆕 mixed mode：在 outcome 已合併訪視 case（_isVisit 標記）後，再 fallback 把純 visit case
+            //    （outcome 模式可能因 verifyAddrs 排除掉的）也補進來，確保「當天所有行程」都有
+            if (mode === 'mixed') {
+                const sched = (typeof scheduleData !== 'undefined' ? scheduleData[dateStr] : null) || { entries: {} };
+                const isUnit = (c) => c && (c.category === '中高齡（工作站）' || c.category === '中高齡及高齡者' || c.category === '勞工就業通');
+                const visitCases = (casesData || []).filter(c =>
+                    isPrimaryCase(c) && formatDateYMD(c.visitDate || c.date) === dateStr
+                );
+                for (const c of visitCases) {
+                    const key = isUnit(c) ? `unit_${(c.company || '').trim() || c.id}` : `dis_${c.id}`;
+                    if (groups.has(key)) continue;  // 已存在不覆蓋（保留 outcome 那筆）
+                    const addr = c.address || c.companyAddress || c.workLocation || '';
+                    const time = (sched.entries?.[`visit_${c.id}`] || {}).visitTime || '';
+                    groups.set(key, {
+                        unitName: isUnit(c) ? (c.company || '') : (c.clientName || ''),
+                        address: addr,
+                        members: [{ name: c.clientName || '', category: c.category || '' }],
+                        categoryType: _tripCategoryType(c.category),
+                        cityDistrict: _tripCityDistrict(addr),
+                        time,
+                        category: c.category || '',
+                        inspector: String(c.inspector || '').trim(),
+                        _isVisit: true,
+                    });
                 }
             }
             // 排序：有 time 的先按 time，沒 time 的附後；再按單位名稱
@@ -13202,17 +13926,40 @@ ${rawDraft}
             // 預定行程
             const tripLine = ['高師大', ...groups.map(g => g.unitName || '').filter(Boolean), '高師大'].join('-');
 
-            // 訪視內容：依類別分段，連續同類合併成 range
+            // 訪視內容：
+            // mixed mode：同類別 + 訪視/成效合併一行（凱宇 2026-05-05 簡化）
+            //   範例：「訪視內容：中高齡者職務再設計訪視評估。」
+            //   多種類別/訪視成效混合 → 多行（每組合一行），不帶編號或姓名
+            // 其他 mode 維持原本「按類別分段、連續同類合併」行為
             const contentLines = [];
-            let rangeStart = 1, prevType = groups[0].categoryType;
             const groupTypes = groups.map(g => g.categoryType);
-            for (let i = 1; i <= groupTypes.length; i++) {
-                if (i === groupTypes.length || groupTypes[i] !== prevType) {
-                    const label = (rangeStart === i) ? String(rangeStart) : `${rangeStart}-${i}`;
-                    const phrase = _tripContentPhrase(prevType === '身障' ? '身心障礙者' : prevType === '中高' ? '中高齡' : prevType === '勞通' ? '勞工就業通' : '', mode);
-                    contentLines.push(`${groupTypes.length === groupTypes.filter(t => t === prevType).length ? '' : label + ' '}訪視內容：${phrase}。`);
-                    rangeStart = i + 1;
-                    prevType = groupTypes[i];
+            if (mode === 'mixed') {
+                const seen = new Set();
+                groups.forEach(g => {
+                    const isVisit = !!g._isVisit;
+                    const k = `${g.categoryType}|${isVisit}`;
+                    if (seen.has(k)) return;
+                    seen.add(k);
+                    const catCh = g.categoryType === '身障' ? '身心障礙者' : g.categoryType === '中高' ? '中高齡' : g.categoryType === '勞通' ? '勞工就業通' : '';
+                    const phrase = _tripContentPhrase(catCh, isVisit ? 'visit' : 'outcome');
+                    contentLines.push(`訪視內容：${phrase}。`);
+                });
+            } else {
+                const _rangeKey = (g) => g.categoryType + (g._isVisit ? '_v' : '_o');
+                const groupKeys = groups.map(_rangeKey);
+                const allSameKey = groupKeys.every(k => k === groupKeys[0]);
+                let rangeStart = 1, prevKey = groupKeys[0];
+                for (let i = 1; i <= groupKeys.length; i++) {
+                    if (i === groupKeys.length || groupKeys[i] !== prevKey) {
+                        const label = (rangeStart === i) ? String(rangeStart) : `${rangeStart}-${i}`;
+                        const repGroup = groups[rangeStart - 1];
+                        const catChinese = repGroup.categoryType === '身障' ? '身心障礙者' : repGroup.categoryType === '中高' ? '中高齡' : repGroup.categoryType === '勞通' ? '勞工就業通' : '';
+                        const lineMode = repGroup._isVisit ? 'visit' : mode;
+                        const phrase = _tripContentPhrase(catChinese, lineMode);
+                        contentLines.push(`${allSameKey ? '' : label + ' '}訪視內容：${phrase}。`);
+                        rangeStart = i + 1;
+                        if (i < groupKeys.length) prevKey = groupKeys[i];
+                    }
                 }
             }
 
@@ -13260,15 +14007,36 @@ ${rawDraft}
                 `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
                 `<w:body>${bodyXml}${sectPr}</w:body></w:document>`;
 
-            // 檔名
+            // 🆕 整日/半日判斷（凱宇 2026-05-05 修正）：
+            //   - 跨中午（有 < 12:00 也有 >= 12:00）→ 整日
+            //   - 8:00-17:00 範圍橫跨（最早 ≤ 8:00 + 最晚 ≥ 17:00）→ 整日
+            //   - 其餘（全早上 / 全下午 / 全空）→ 半日
+            //   - 沒填時間（00:00 或無）的 row 跳過，用其他有時間的判斷
+            const _hm = (t) => {
+                const m = String(t || '').match(/^(\d{1,2}):(\d{2})/);
+                if (!m) return null;
+                const v = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+                return v === 0 ? null : v;   // 00:00 視為「沒填」
+            };
+            const minutes = groups.map(g => _hm(g.time)).filter(x => x !== null);
+            let dayPart = '半日';
+            if (minutes.length > 0) {
+                const hasMorning = minutes.some(m => m < 12 * 60);
+                const hasAfternoon = minutes.some(m => m >= 12 * 60);
+                const earliest = Math.min(...minutes);
+                const latest = Math.max(...minutes);
+                if (hasMorning && hasAfternoon) dayPart = '整日';
+                else if (earliest <= 8 * 60 && latest >= 17 * 60) dayPart = '整日';
+                else dayPart = '半日';
+            }
+
+            // 檔名（凱宇 2026-05-05 簡化、統一用「訪視行程表」）
             let filename;
-            if (mode === 'outcome') {
-                filename = `${mgDigits}_成效訪視行程表_整日.docx`;
+            if (mode === 'mixed') {
+                filename = `${mgDigits}_行程表_${dayPart}.docx`;
             } else {
-                const typeStr = types.length === 1
-                    ? (types[0] === '身障' ? '身障' : types[0] === '中高' ? '中高' : types[0] === '勞通' ? '勞通' : '訪視')
-                    : '混合';
-                filename = `訪視行程表-${typeStr}${mgDigits}.docx`;
+                // outcome 跟 visit 都叫「訪視行程表」
+                filename = `${mgDigits}_訪視行程表_${dayPart}.docx`;
             }
 
             try {
@@ -13515,11 +14283,11 @@ ${rawDraft}
             h2(`${lastChapterNo}、訪視/填表人員`);
             const _coInsp = Array.isArray(raw.coInspectors) ? raw.coInspectors.filter(Boolean) : [];
             const persons = [
-                ['訪視專員 (主)', raw.inspector || '(未填)'],
+                ['訪視專員 (主)', raw.owner || '(未填)'],
                 ['協訪專員', _coInsp.length ? _coInsp.join('、') : '(無)'],
-                ['轄區承辦', raw.owner || '(未填)'],
+                ['轄區承辦', raw.inspector || '(未填)'],
                 ['訪視委員', Array.isArray(raw.committees) ? raw.committees.join('、') : (raw.committees || '(未填)')],
-                ['填表人員', raw.inspector || raw.owner || PRIMARY_OWNER],
+                ['填表人員', raw.owner || raw.inspector || PRIMARY_OWNER],
             ];
             paragraphs.push(_docxTable(['角色', '人員'], persons, [2400, 7200]));
 
@@ -13548,8 +14316,123 @@ ${rawDraft}
         window.exportCaseReferenceDocx = exportCaseReferenceDocx;
 
         // --- 差勤請款：訪視 / 成效 日期清單（收合、依離今日最近排序） ---
+        // 🆕 訪視 + 成效合併清單：每個日期 row 同時顯示兩種統計與獨立下載按鈕
+        function _renderTripDateListAll() {
+            const listEl = document.getElementById('sch-trip-list');
+            if (!listEl) return;
+            // 確保 verifyData 已同步
+            if (typeof vSyncFromCases === 'function') {
+                try { vSyncFromCases(); } catch (e) { console.warn('[_renderTripDateListAll] vSyncFromCases failed', e); }
+            }
+            const isUnitCat = (cat) => {
+                const s = String(cat || '');
+                return s.includes('中高') || s.includes('勞工') || s.includes('就業通');
+            };
+            // byDate Map: { d → { visit: Map, outcome: Map } }
+            const byDate = new Map();
+            const ensureBucket = (d) => {
+                if (!byDate.has(d)) byDate.set(d, { visit: new Map(), outcome: new Map() });
+                return byDate.get(d);
+            };
+            // 訪視
+            for (const c of (casesData || [])) {
+                if (!isPrimaryCase(c)) continue;
+                const vd = formatDateYMD(c.visitDate || c.date);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(vd)) continue;
+                const bucket = ensureBucket(vd).visit;
+                const unit = isUnitCat(c.category);
+                const key = unit ? `u_${(c.company || '').trim() || c.id}` : `p_${c.id}`;
+                const district = _tripCityDistrict(c.companyAddress || '') || String(c.district || '').trim();
+                if (!bucket.has(key)) bucket.set(key, { type: unit ? 'unit' : 'person', clientCount: 0, district });
+                bucket.get(key).clientCount++;
+            }
+            // 成效
+            for (const c of (verifyData?.cases || [])) {
+                const vd = formatDateYMD(c.verificationDate);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(vd)) continue;
+                const bucket = ensureBucket(vd).outcome;
+                const unit = c.category === '中高勞通';
+                const key = unit ? `u_${(c.unit || '').trim() || c.id}` : `p_${c.id}`;
+                const raw = (casesData || []).find(x => x.id === c.id);
+                const district = _tripCityDistrict(c.address || raw?.companyAddress || '') || String(raw?.district || '').trim();
+                if (!bucket.has(key)) bucket.set(key, { type: unit ? 'unit' : 'person', clientCount: 0, district });
+                bucket.get(key).clientCount++;
+            }
+            if (byDate.size === 0) {
+                listEl.innerHTML = '<p class="text-center text-slate-400 py-4 text-sm">尚無訪視或成效驗收日期</p>';
+                return;
+            }
+            const todayStr = _schedLocalYMD(new Date());
+            const today = new Date(todayStr + 'T00:00:00');
+            const dated = [...byDate.keys()].map(d => {
+                const dt = new Date(d + 'T00:00:00');
+                const diff = Math.round((dt - today) / 86400000);
+                return { d, diff };
+            });
+            dated.sort((a, b) => b.d.localeCompare(a.d));
+            const weekdayFor = (ymd) => {
+                const dt = new Date(ymd + 'T00:00:00');
+                return isNaN(dt.getTime()) ? '' : '星期' + '日一二三四五六'[dt.getDay()];
+            };
+            const escH = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const tally = (groupMap) => {
+                let points = 0, units = 0, dis = 0;
+                const districts = new Set();
+                for (const g of groupMap.values()) {
+                    points++;
+                    if (g.type === 'unit') units++;
+                    else dis += g.clientCount || 1;
+                    if (g.district) districts.add(g.district);
+                }
+                return { points, units, dis, districts: [...districts] };
+            };
+            listEl.innerHTML = dated.map(({ d, diff }) => {
+                const label = diff === 0 ? '今天' : diff === 1 ? '明天' : diff === -1 ? '昨天' : (diff > 0 ? `${diff} 天後` : `${-diff} 天前`);
+                const mg = _tripMinguoDate(d);
+                const dayBadgeCls = diff === 0 ? 'bg-rose-100 text-rose-700 border-rose-200'
+                    : Math.abs(diff) <= 7 ? 'bg-amber-100 text-amber-700 border-amber-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200';
+                const buckets = byDate.get(d);
+                const v = tally(buckets.visit);
+                const o = tally(buckets.outcome);
+                const visitChip = v.points > 0
+                    ? `<span class="text-[11px] px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-800"><i class="fa-solid fa-person-walking mr-0.5"></i>訪 ${v.points} 點 · 中高 ${v.units} · 身障 ${v.dis}</span>`
+                    : '';
+                const outcomeChip = o.points > 0
+                    ? `<span class="text-[11px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-clipboard-check mr-0.5"></i>成 ${o.points} 點 · 中高 ${o.units} · 身障 ${o.dis}</span>`
+                    : '';
+                const districts = new Set([...v.districts, ...o.districts]);
+                const districtChips = [...districts].map(x => `<span class="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">${escH(x)}</span>`).join(' ');
+                // 🆕 改成單一合併按鈕：下載一份含當天所有訪視+成效的 docx，內文逐筆標明
+                const downloadBtn = (v.points > 0 || o.points > 0)
+                    ? `<button onclick="window.exportTripScheduleDocx('${d}', 'mixed')" class="text-xs font-bold px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-800 text-white shadow-sm active:scale-95 whitespace-nowrap" title="下載當天行程表（訪視+成效合併）Word"><i class="fa-solid fa-file-word mr-0.5"></i>下載合併</button>`
+                    : '';
+                const visitBtn = downloadBtn;
+                const outcomeBtn = '';
+                return `<div class="bg-white border border-slate-200 rounded-lg p-2.5 hover:shadow-sm transition-shadow">
+                    <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
+                        <span class="font-bold text-slate-800 text-sm">${d}</span>
+                        <span class="text-xs text-slate-500">${weekdayFor(d)}</span>
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${dayBadgeCls}">${label}</span>
+                        <span class="text-[10px] text-slate-400 ml-auto">${mg}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex flex-wrap items-center gap-1.5">${visitChip}${outcomeChip}</div>
+                            ${districtChips ? `<div class="mt-1 flex flex-wrap gap-1">${districtChips}</div>` : ''}
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            ${visitBtn}${outcomeBtn}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
         window.renderTripDateList = function(mode) {
-            if (!mode) { window.renderTripDateList('visit'); window.renderTripDateList('outcome'); return; }
+            if (!mode) { window.renderTripDateList('all'); return; }
+            // 🆕 'all' mode：訪視 + 成效合併同一份清單，row 內並列兩種資訊與下載按鈕
+            if (mode === 'all') { _renderTripDateListAll(); return; }
             const listEl = document.getElementById(mode === 'visit' ? 'sch-trip-visit-list' : 'sch-trip-outcome-list');
             if (!listEl) return;
             // 成效模式：確保 verifyData.cases 已同步（vSyncFromCases 只在進入成效驗收 tab 時才跑）
@@ -13809,9 +14692,10 @@ ${rawDraft}
             { key:'workLocation',        zh:['實際工作地點','工作地點'],        group:'job',  label:'工作地點',   type:'text', listDefault:false },
 
             // --- 人員 / 審閱 ---
-            { key:'inspector',           zh:['訪視專員','訪視人員','訪視承辦','承辦'], group:'personnel', label:'承辦', type:'text', listDefault:true },
+            // 凱宇 2026-05-05 對應修正：訪視專員/訪視人員 → 接案人員 (owner)；轄區承辦 → 承辦 (inspector)
+            { key:'inspector',           zh:['承辦','轄區承辦','訪視承辦'],         group:'personnel', label:'轄區承辦', type:'text', listDefault:true },
             { key:'coInspectors',        zh:['協訪專員','協訪人員','協同訪視'],   group:'personnel', label:'協訪專員',   type:'text', listDefault:false },
-            { key:'owner',               zh:['接案人員','接案     人員','轄區承辦'], group:'personnel', label:'接案人員', type:'text', listDefault:true  },
+            { key:'owner',               zh:['接案人員','接案     人員','訪視專員','訪視人員'], group:'personnel', label:'訪視專員', type:'text', listDefault:true  },
             { key:'committeesRaw',       zh:['訪視委員','委員'],                group:'personnel', label:'訪視委員', type:'text', listDefault:false },
             { key:'reviewer',            zh:['報告審閱者','報告\n審閱者','審閱者'], group:'personnel', label:'審閱者',   type:'text', listDefault:false },
             { key:'reviewed',            zh:['審閱','完成審閱','完成\n審閱'],  group:'personnel', label:'審閱狀態', type:'text', listDefault:false },
@@ -14107,13 +14991,36 @@ ${rawDraft}
                     }
 
                     if (existing) {
-                        // 補空不覆蓋（陣列類欄位如 committees 若現存為空陣列亦視為空）
+                        // 🆕 「強制覆蓋」勾選 → Excel 為準（所有 row 欄位都覆蓋既有，含「(工作站案件)」這種佔位）
+                        // 預設「補空不覆蓋」 → 既有有值就保留（陣列空[]視為空、可被覆蓋）
+                        const forceOverwrite = document.getElementById('case-import-force')?.checked;
+                        // 🆕 保留欄位白名單：永遠不被 Excel 覆蓋（即使強制覆蓋也不動）
+                        // 理由：這些是使用者手動填/系統累積的資料，Excel 沒有
+                        const PROTECTED_KEYS = new Set([
+                            // 工作區 / 紀錄類
+                            'workstations', 'companyPersonnel', 'workstationItems',
+                            // 成效驗收 / 報告
+                            'verificationDate', 'notes', 'docFile', 'reportCompleted', 'reportCompletedAt',
+                            'evalReportFileUrl', 'unitEvalReportFileUrl', 'verifySupplement',
+                            // 使用者手動補的細節
+                            'address', 'companyAddress', 'sharedEquipment', 'equipmentAssignments',
+                            // 申請書 / 上傳檔
+                            'applicationFileUrl', 'applicationFile',
+                            // 階段
+                            'stage',
+                        ]);
                         const patch = {};
                         Object.keys(row).forEach(k => {
+                            if (PROTECTED_KEYS.has(k)) return;   // 🆕 保留欄位完全不動
                             const cur = existing[k];
                             const isEmpty = cur === undefined || cur === null
                                 || (Array.isArray(cur) ? cur.length === 0 : String(cur).trim() === '');
-                            if (isEmpty) patch[k] = row[k];
+                            // 強制覆蓋：所有有值的 row 欄位都寫入；
+                            // 特例：clientName 是「(工作站案件)」佔位且 row 有真姓名 → 也應覆蓋
+                            const isPlaceholderName = k === 'clientName' && /工作站案件/.test(String(cur || ''));
+                            if (forceOverwrite || isEmpty || isPlaceholderName) {
+                                if (row[k] !== undefined && row[k] !== '' && row[k] !== null) patch[k] = row[k];
+                            }
                         });
                         // 若舊案為 meeting-import 佔位、且此次帶入了訪視日期 → 升級階段
                         if (row.visitDate && (!existing.stage || existing.stage === '待訪視') && (!existing.visitDate)) {
@@ -14760,6 +15667,7 @@ ${rawDraft}
                                             onchange="event.stopPropagation(); window.vInlineSaveVerificationDate('${c.id}', this.value)"
                                             onclick="event.stopPropagation()"
                                             class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white focus:ring-1 focus:ring-purple-300">
+                                        ${c.verificationDate ? `<button type="button" onclick="event.stopPropagation(); window.vInlineSaveVerificationDate('${c.id}', '')" title="清空驗收日（個案回未驗收）" class="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 font-bold transition-colors"><i class="fa-solid fa-xmark"></i> 清空</button>` : ''}
                                     </div>
                                     <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
                                         <i class="fa-solid fa-location-dot text-xs text-slate-300 shrink-0"></i>
@@ -14834,6 +15742,7 @@ ${rawDraft}
                                             onchange="event.stopPropagation(); window.vInlineSaveUnitVerificationDate('${key}', this.value)"
                                             onclick="event.stopPropagation()"
                                             class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white focus:ring-1 focus:ring-amber-300">
+                                        ${group.cases[0]?.verificationDate ? `<button type="button" onclick="event.stopPropagation(); window.vInlineSaveUnitVerificationDate('${key}', '')" title="清空整單位驗收日（全員回未驗收）" class="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 font-bold transition-colors"><i class="fa-solid fa-xmark"></i> 清空</button>` : ''}
                                         <span class="text-slate-300 text-[10px]">（套全員 ${group.cases.length} 人）</span>
                                     </div>
                                     <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
@@ -14879,7 +15788,7 @@ ${rawDraft}
                                         <div class="flex items-center gap-1.5 flex-wrap">
                                             <span class="font-medium text-slate-700 text-sm">${c.clientName || '（無姓名）'}</span>
                                             <span class="text-xs px-1.5 py-0.5 rounded ${statusColor[c.status] || ''}">${statusLabel[c.status] || c.status}</span>
-                                            ${c.verificationDate ? `<span class="text-xs text-slate-400">${c.verificationDate}</span>` : ''}
+                                            ${c.verificationDate ? `<span class="text-xs text-slate-400">${formatDateYMD(c.verificationDate) || c.verificationDate}</span>` : ''}
                                             ${_apptMissingBadgeHtml(c)}
                                         </div>
                                         ${impChips.length > 0 ? `<div class="flex flex-wrap gap-1 mt-0.5">${impChips.slice(0,3).map(ch => `<span class="text-xs bg-amber-50 border border-amber-200 px-1 py-0.5 rounded text-amber-700">${ch}</span>`).join('')}</div>` : ''}
@@ -15088,6 +15997,8 @@ ${rawDraft}
             if (!c) return;
             c.verificationDate = value;
             if (value && c.status === 'pending') c.status = 'inProgress';
+            // 🆕 清空驗收日 → status 回 pending（除非已 closed / abandoned，那是手動結案/放棄不動）
+            if (!value && c.status === 'inProgress') c.status = 'pending';
             saveVerifyData();
             if (typeof _scheduleAutoCloudSync === 'function') _scheduleAutoCloudSync(caseId);
             vRenderDashboard();
@@ -15112,6 +16023,7 @@ ${rawDraft}
             targets.forEach(c => {
                 c.verificationDate = value;
                 if (value && c.status === 'pending') c.status = 'inProgress';
+                if (!value && c.status === 'inProgress') c.status = 'pending';
             });
             saveVerifyData();
             if (typeof _scheduleAutoCloudSync === 'function') {
@@ -15788,7 +16700,11 @@ ${rawDraft}
         const schedNotesTimers = {};
 
         // 每筆案件/單位在行程表中的唯一 key
+        // 凱宇 2026-05-05：訪視 case 的中高勞通類別 → 用「單位名」合併（一個地點一個 row），不再每人 1 row
         function schedKeyForCase(c) {
+            if (c._isVisit && c._isElder) {
+                return 'elder_visit_' + ((c.unit || c.company || '').trim() || c.id);
+            }
             if (c.category === '身障') return 'dis_' + c.id;
             return 'elder_' + (c.year || '') + '_SEP_' + (c.caseNo || c.unit || '');
         }
@@ -15798,16 +16714,73 @@ ${rawDraft}
             return verifyData.cases.filter(c => schedKeyForCase(c) === key);
         }
 
+        // 🆕 把 casesData 訪視 case 轉成 verify-shape，供行程表/行程規劃合併用
+        // dateStr 給定 → 只取該日訪視；不給 → 全部主責
+        // 自動排除已有對應 verify entry 的（同地址）
+        function _visitCasesAsVerifyShape(dateStr) {
+            const verifyAddrs = new Set(
+                (verifyData.cases || [])
+                    .filter(c => !dateStr || c.verificationDate === dateStr)
+                    .map(c => (c.address || '').trim())
+                    .filter(Boolean)
+            );
+            return (casesData || [])
+                .filter(c => {
+                    if (!isPrimaryCase(c)) return false;
+                    if (dateStr) {
+                        const d1 = formatDateYMD(c.visitDate || c.date);
+                        const d2 = formatDateYMD(c.visitDate2 || '');
+                        if (d1 !== dateStr && d2 !== dateStr) return false;
+                    } else {
+                        // 沒指定日期：要求有 visitDate 才有意義（不然行程表也排不上）
+                        if (!c.visitDate && !c.date) return false;
+                    }
+                    return true;
+                })
+                .map(c => {
+                    const addr = (c.address || c.companyAddress || c.workLocation || '').trim();
+                    const vd = formatDateYMD(c.visitDate || c.date);
+                    const isElder = String(c.caseNo || '').toUpperCase().match(/^(AG|EC|TA)/) || (c.category || '').includes('中高') || (c.category || '').includes('勞工就業通');
+                    return {
+                        id: 'visit_' + c.id,
+                        _isVisit: true,
+                        category: '訪視',                       // 顯示用 chip
+                        clientName: c.clientName || '',
+                        unit: c.company || '',
+                        contactPerson: c.contactPerson || c.applicantName || '',
+                        unitPhone: c.companyPhone || c.phone || '',
+                        address: addr,
+                        verificationDate: dateStr || vd || '',
+                        visitDate: vd,
+                        year: c.year || '',
+                        caseNo: c.caseNo || '',
+                        owner: c.owner || '',
+                        inspector: c.inspector || '',
+                        district: c.district || '',
+                        status: 'pending',                      // 訪視 case 預設未驗收
+                        _isElder: !!isElder,                    // 給 group 判斷用
+                    };
+                })
+                .filter(c => c.address && !verifyAddrs.has(c.address));
+        }
+
         function getScheduleForDate(dateStr) {
             if (!scheduleData[dateStr]) scheduleData[dateStr] = { order: [], entries: {} };
             if (!scheduleData[dateStr].entries) scheduleData[dateStr].entries = {};
             return scheduleData[dateStr];
         }
 
+        // 🐛 取目前使用者 uid：vCurrentUid 沒設定時 fallback 到 currentUser.uid
+        // 之前 bug：使用者直接從 home 進「行程表」沒進過成效驗收 tab，vCurrentUid 是空 → 寫入靜默跳過
+        function _schedUid() {
+            return vCurrentUid || (typeof currentUser !== 'undefined' && currentUser?.uid) || '';
+        }
+
         async function loadScheduleFromFirebase(dateStr) {
-            if (!vCurrentUid || !db) return;
+            const uid = _schedUid();
+            if (!uid || !db) return;
             try {
-                const docRef = doc(db, 'users', vCurrentUid, 'scheduleData', dateStr);
+                const docRef = doc(db, 'users', uid, 'scheduleData', dateStr);
                 const snap = await getDoc(docRef);
                 if (snap.exists()) {
                     const data = snap.data();
@@ -15818,19 +16791,25 @@ ${rawDraft}
         }
 
         async function saveScheduleToFirebase(dateStr) {
-            if (!vCurrentUid || !db) return;
+            const uid = _schedUid();
+            if (!uid || !db) {
+                console.warn('[saveScheduleToFirebase] 無 uid 或 db，無法存檔', { uid, db: !!db });
+                if (typeof showToast === 'function') showToast('⚠ 行程表時間未存到雲端：請先登入');
+                return;
+            }
             const data = scheduleData[dateStr];
             if (!data) return;
             // 🆕 重用 0427 的右下角同步 badge（_setAutoSyncStatus / _autoSyncLastAt）
             if (typeof _setAutoSyncStatus === 'function') _setAutoSyncStatus('syncing');
             try {
-                await setDoc(doc(db, 'users', vCurrentUid, 'scheduleData', dateStr), data);
+                await setDoc(doc(db, 'users', uid, 'scheduleData', dateStr), data);
                 if (typeof _setAutoSyncStatus === 'function') {
                     _autoSyncLastAt = new Date();
                     _setAutoSyncStatus('synced');
                 }
             } catch(e) {
-                console.warn('saveScheduleToFirebase', e);
+                console.error('[saveScheduleToFirebase] 寫入失敗', e);
+                if (typeof showToast === 'function') showToast('❌ 行程表時間存檔失敗：' + (e.message || e));
                 if (typeof _setAutoSyncStatus === 'function') _setAutoSyncStatus('error');
             }
         }
@@ -15851,13 +16830,16 @@ ${rawDraft}
                 return;
             }
 
-            const dayCases = verifyData.cases.filter(c => c.verificationDate === dateStr);
+            const verifyDayCases = verifyData.cases.filter(c => c.verificationDate === dateStr);
+            // 🆕 合併當天訪視 case（沒對應成效 entry 的）
+            const visitDayCases = _visitCasesAsVerifyShape(dateStr);
+            const dayCases = [...verifyDayCases, ...visitDayCases];
 
             if (dayCases.length === 0) {
                 container.innerHTML = `<div class="text-center text-slate-400 py-10">
                     <i class="fa-solid fa-calendar-xmark text-3xl mb-3 text-slate-300"></i>
-                    <p class="text-base font-bold">這天沒有安排驗收案件</p>
-                    <p class="text-sm mt-1">請在「驗收作業」頁面設定驗收日期</p>
+                    <p class="text-base font-bold">這天沒有安排驗收案件或訪視</p>
+                    <p class="text-sm mt-1">請在「驗收作業」設定驗收日，或在案件設定訪視日</p>
                 </div>`;
                 if (summaryEl) summaryEl.querySelector('span').textContent = '此日無排程';
                 return;
@@ -15869,13 +16851,14 @@ ${rawDraft}
             const groups = new Map();
             dayCases.forEach(c => {
                 const key = schedKeyForCase(c);
+                // 訪視 case 用 _isElder 決定走中高 group 還是身障 group
+                const isElderType = c._isVisit ? !!c._isElder : (c.category !== '身障');
                 if (!groups.has(key)) {
-                    if (c.category === '身障') {
-                        groups.set(key, { type: '身障', cases: [c], name: c.clientName || '（無姓名）',
-                            unit: c.unit, contactPerson: c.contactPerson, unitPhone: c.unitPhone });
+                    const base = { cases: [c], unit: c.unit, contactPerson: c.contactPerson, unitPhone: c.unitPhone, _isVisit: !!c._isVisit };
+                    if (!isElderType) {
+                        groups.set(key, { ...base, type: '身障', name: c.clientName || '（無姓名）' });
                     } else {
-                        groups.set(key, { type: '中高勞通', cases: [c], name: c.unit || '（無單位）',
-                            unit: c.unit, contactPerson: c.contactPerson, unitPhone: c.unitPhone });
+                        groups.set(key, { ...base, type: '中高勞通', name: c.unit || c.clientName || '（無單位）' });
                     }
                 } else {
                     groups.get(key).cases.push(c);
@@ -15903,14 +16886,15 @@ ${rawDraft}
                 const entry = (sched.entries || {})[key] || {};
                 const visitTime = entry.visitTime || '';
                 const cnt = g.cases.length;
-                // 取地址/備註（以第一筆 case 為主）
+                // 取地址/備註（以第一筆 case 為主；訪視 case 沒有 verifyData entry）
                 const repCase = verifyData.cases.find(c => schedKeyForCase(c) === key) || g.cases[0];
                 const addr    = repCase ? (repCase.address  || '') : '';
                 const notes   = repCase ? (repCase.notes    || '') : '';
                 const docFile = repCase ? (repCase.docFile  || null) : null;
-                const catBadge = g.type === '身障'
+                const visitChip = g._isVisit ? '<span class="text-xs px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 font-bold">🗓 訪視</span>' : '';
+                const catBadge = (g.type === '身障'
                     ? '<span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">身障</span>'
-                    : '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">中高勞通</span>';
+                    : '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">中高勞通</span>') + visitChip;
                 const isFirst = idx === 0, isLast = idx === keys.length - 1;
                 const safeKey = escH(key);
 
@@ -15923,7 +16907,7 @@ ${rawDraft}
                         <div class="flex-1 min-w-0 space-y-2.5">
                             <!-- 時間 + 名稱 + 標籤 -->
                             <div class="flex items-center gap-2 flex-wrap">
-                                <input type="time" class="border border-slate-200 rounded-lg px-2 py-1.5 text-base font-bold text-blue-700 bg-blue-50 focus:ring-2 focus:ring-blue-400 shrink-0" style="min-width:7rem;width:7.5rem;"
+                                <input type="time" class="border border-slate-200 rounded-lg px-2 py-1.5 text-base font-bold text-blue-700 bg-blue-50 focus:ring-2 focus:ring-blue-400 shrink-0" style="min-width:9rem;width:9.5rem;"
                                        value="${escH(visitTime)}" data-key="${safeKey}"
                                        onchange="window.schedSaveTime('${safeKey}', this.value)">
                                 <span class="font-bold text-slate-800 text-base leading-tight">${escH(g.name)}</span>
@@ -16743,10 +17727,17 @@ ${rawDraft}
                 if (districtFilter) cases = cases.filter(c => (c.district || '') === districtFilter);
             }
 
+            // 🆕 'filtered' / 'all' mode 也合併訪視 case（'date' mode 已在上面自帶）
+            if (source === 'filtered' || source === 'all') {
+                const visits = _visitCasesAsVerifyShape(); // 全部主責訪視
+                cases = [...cases, ...visits];
+            }
+
             // 排除未驗收（預設打勾）：pending 個案還沒排驗收日，不該被規劃進路線
+            // 訪視 case 雖標 status='pending' 但有 visitDate，仍然要顯示，所以 _isVisit 不被排除
             const excludePending = document.getElementById('route-exclude-pending')?.checked;
             if (excludePending) {
-                cases = cases.filter(c => c.status !== 'pending');
+                cases = cases.filter(c => c._isVisit || c.status !== 'pending');
             }
 
             // 中高勞通同單位合併（一個地址只取一筆，但 peopleCount 累加）
@@ -17028,6 +18019,7 @@ ${rawDraft}
             targets.forEach(c => {
                 c.verificationDate = val;
                 if (val && c.status === 'pending') c.status = 'inProgress';
+                if (!val && c.status === 'inProgress') c.status = 'pending';
             });
             saveVerifyData();
             if (typeof _scheduleAutoCloudSync === 'function') targets.forEach(c => _scheduleAutoCloudSync(c.id));
@@ -17109,6 +18101,7 @@ ${rawDraft}
                     seenIds.add(c.id);
                     c.verificationDate = val;
                     if (val && c.status === 'pending') c.status = 'inProgress';
+                    if (!val && c.status === 'inProgress') c.status = 'pending';
                     touched++;
                     if (typeof _scheduleAutoCloudSync === 'function') _scheduleAutoCloudSync(c.id);
                 });
@@ -17903,7 +18896,8 @@ ${rawDraft}
                     noReview: reviews.length === 0,   // 🆕 無審查資料提醒
                     address: supp.address || c.address || c.companyAddress || c.workLocation || '',
                     docFile: docFileFromEval || supp.docFile || null,
-                    verificationDate: c.verificationDate || supp.verificationDate || '',
+                    // 🐛 Fix: 用 ?? 避免「空字串被 || 當 falsy 而 fallback 到 supp 舊值」
+                    verificationDate: (c.verificationDate ?? supp.verificationDate) ?? '',
                     notes: supp.notes || '',
                     items: reviews.map((r, idx) => ({
                         name: r.item || '',
@@ -18022,7 +19016,8 @@ ${rawDraft}
                         district: String(m.district || rep.district || m.referralSource || rep.referralSource || '').replace(/[縣市]/g, '').trim(),   // 🆕 供轄區篩選
                         status: mStatus,
                         noReview: unitNoReview,   // 🆕 無審查資料提醒（單位層級）
-                        verificationDate: m.verificationDate || supp.verificationDate || '',
+                        // 🐛 Fix: 用 ?? 避免「空字串被 || 當 falsy 而 fallback 到 supp 舊值」
+                        verificationDate: (m.verificationDate ?? supp.verificationDate) ?? '',
                         visitDate: formatDateYMD(m.visitDate || m.date) || '',   // 🆕 供排序
                         notes: supp.notes || '',
                         address: supp.address || m.address || m.companyAddress || m.workLocation || rep.companyAddress || rep.workLocation || '',
@@ -18059,6 +19054,7 @@ ${rawDraft}
                 supps[c.id].notes = c.notes || '';
                 supps[c.id].address = c.address || '';
                 supps[c.id].docFile = c.docFile || null;
+                supps[c.id].verificationDate = c.verificationDate || '';   // 🐛 Fix: 一起存 supp，清空時 supp 也清掉，避免下次 vSyncFromCases fallback 拿到舊值
                 supps[c.id].items = (c.items || []).map(it => ({
                     workStation: it.workStation || '',
                     sharedUsers: it.sharedUsers || '',
@@ -18080,7 +19076,9 @@ ${rawDraft}
                     const patch = {};
                     const cached = (casesData || []).find(x => x.id === tid);
                     if (newStage && cached && cached.stage !== newStage) patch.stage = newStage;
-                    if (c.verificationDate && cached && cached.verificationDate !== c.verificationDate) patch.verificationDate = c.verificationDate;
+                    // 🐛 Fix: 用 (c.verificationDate || '') 比對，空字串也要寫回（清空 = 改成 ''）
+                    const newVerDate = c.verificationDate || '';
+                    if (cached && (cached.verificationDate || '') !== newVerDate) patch.verificationDate = newVerDate;
                     if (Object.keys(patch).length > 0) _writeVerifyBackToCase(tid, patch);
                 }
             }
@@ -18349,6 +19347,24 @@ ${rawDraft}
                 更換 QR 名片圖片
                 <input type="file" id="qr-upload" accept="image/*" class="hidden">
             </label>
+        </div>
+    </div>
+
+    <!-- 診斷案件狀態 modal -->
+    <div id="diag-case-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onclick="if(event.target===this) document.getElementById('diag-case-modal').classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
+                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-magnifying-glass-chart text-blue-500 mr-1"></i><span id="diag-case-title">診斷案件狀態</span></h3>
+                <button onclick="document.getElementById('diag-case-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="diag-case-body" class="flex-1 overflow-y-auto p-4 text-xs font-mono whitespace-pre-wrap"></div>
+            <div class="p-3 border-t border-slate-200 shrink-0 flex gap-2 justify-end flex-wrap">
+                <button onclick="window.diagCopyToClipboard()" class="text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded">📋 複製全文</button>
+                <button onclick="window.fixUnitConsolidate()" class="text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded shadow" title="把上方查到的同單位 case 整理乾淨：合併工作站到主案、清 (工作站案件) 殘留、地址 propagate、修日期格式">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>一鍵整理（4 件）
+                </button>
+                <button onclick="document.getElementById('diag-case-modal').classList.add('hidden')" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded">關閉</button>
+            </div>
         </div>
     </div>
 
