@@ -203,6 +203,10 @@
                         <button type="button" onclick="if(confirm('完整備份會包含所有 base64 媒體，檔案可能很大（可能超過 50MB），確定要下載嗎？')) window.backupCasesJson('full')" class="text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg" title="完整備份：含所有 base64 媒體。檔案可能很大。">
                             <i class="fa-solid fa-database mr-1"></i>完整
                         </button>
+                        <!-- 🆕 Phase 0：孤立 case 清理（先 dry-run 預覽、確認後才執行） -->
+                        <button type="button" onclick="window.cleanupOrphansDryRun()" class="text-xs font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 px-3 py-1.5 rounded-lg" title="揪出歷史殘留的 EC orphan / 數字 caseNo / UH orphan / 「（工作站案件）」佔位等垃圾 case。先彈出預覽，確認後才能執行刪除。">
+                            <i class="fa-solid fa-broom mr-1"></i>清理孤立 case
+                        </button>
                     </div>
                 </div>
                 <div class="flex items-center justify-between bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap gap-2">
@@ -3555,6 +3559,238 @@
             // 同步印一份到 console（方便 F12 直接抓）
             console.log('%c=== diagUnit() 報告 ===', 'font-weight:bold;color:#7c3aed');
             console.log(text);
+        };
+
+        // ============================================================
+        // 🆕 Phase 0：孤立 case 清理工具
+        //   針對 diagUnit() 揪出的 4 類歷史垃圾：
+        //     A: EC orphan — 沒 company、caseNo 為 EC*、clientName 含「工作站案件」
+        //     B: 數字 caseNo — caseNo 純數字、沒 clientName（早期測試殘留）
+        //     C: UH orphan — 沒 company 的 UH 案
+        //     D: 弘道型佔位 — 有 company、但 clientName 是「（工作站案件）」
+        //   D 類比較特殊：可能藏著單位獨家資料（地址、訪視委員等），所以執行時
+        //   會先把 D 的獨家 unit-level 欄位合併到主案，再刪除 D 本身。
+        // ============================================================
+
+        // 找出所有候選 junk case + 判斷類別
+        function _categorizeJunkCases() {
+            const all = (casesData || []);
+            const out = [];
+            const UNIT_LEVEL_PRESERVE = [
+                'companyAddress','industryCategory','phone','phone2','contactName','contactName2','contactEmail',
+                'district','referralSource','reviewer','reviewed','intakeDate',
+                'visitDate','visitDate2','visitors','committees','committeesRaw',
+                'applicationFileUrl','applicationFile',
+                'applicantCount','actualApplicantCount',
+                'reviewMeetingDate1','reviewMeetingDate2','openDate',
+                'inspector','owner',
+                'companyPersonnel','sharedEquipment','equipmentAssignments','workstations',
+                'note'
+            ];
+            const isEmpty = (v) => v === null || v === undefined
+                || (Array.isArray(v) ? v.length === 0 : String(v).trim() === '');
+
+            for (const c of all) {
+                const company = String(c.company || '').trim();
+                const name = String(c.clientName || '').trim();
+                const caseNo = String(c.caseNo || '').trim();
+                const isPlaceholderName = /工作站案件/.test(name);
+                const isNoName = !name || /^\(?無名\)?$/.test(name);
+
+                let cat = null;
+                if (!company && /^EC\d+/i.test(caseNo) && isPlaceholderName) cat = 'A';
+                else if (!company && /^UH\d+/i.test(caseNo) && isNoName) cat = 'C';
+                else if (/^\d+$/.test(caseNo) && isNoName) cat = 'B';
+                else if (company && isPlaceholderName) cat = 'D';
+                if (!cat) continue;
+
+                const item = { case: c, category: cat, mergeTarget: null, mergePatch: {} };
+
+                // 對 D：找同 company 的主案、計算要 propagate 的獨家欄位
+                if (cat === 'D') {
+                    const siblings = all.filter(x => x.id !== c.id && String(x.company || '').trim() === company);
+                    if (siblings.length > 0) {
+                        // 主案 = 最低 caseNo（且 caseNo 非空）
+                        const ranked = siblings.slice().sort((a, b) => {
+                            const na = String(a.caseNo || 'zzz'), nb = String(b.caseNo || 'zzz');
+                            return na.localeCompare(nb, 'zh-Hant', { numeric: true });
+                        });
+                        const primary = ranked[0];
+                        const patch = {};
+                        for (const f of UNIT_LEVEL_PRESERVE) {
+                            if (!isEmpty(c[f]) && isEmpty(primary[f])) {
+                                patch[f] = c[f];
+                            }
+                        }
+                        item.mergeTarget = primary;
+                        item.mergePatch = patch;
+                    }
+                }
+
+                out.push(item);
+            }
+            return out;
+        }
+
+        // Dry-run：在 diag modal 中列出所有候選，不寫入
+        window.cleanupOrphansDryRun = function() {
+            const items = _categorizeJunkCases();
+            if (items.length === 0) {
+                if (typeof showToast === 'function') showToast('✅ 沒有孤立 case 需要清理');
+                return;
+            }
+
+            const groupByCat = { A: [], B: [], C: [], D: [] };
+            items.forEach(it => groupByCat[it.category].push(it));
+
+            const lines = [];
+            lines.push('=== 孤立 case 清理預覽（Dry-Run，未寫入） ===');
+            lines.push(`產出時間：${new Date().toLocaleString('zh-TW')}`);
+            lines.push(`登入帳號：${currentUser?.email || '(未登入)'}`);
+            lines.push('');
+            lines.push(`【總共 ${items.length} 筆要清理】`);
+            lines.push(`  A. EC orphan（沒 company）：${groupByCat.A.length} 筆 → 直接刪除`);
+            lines.push(`  B. 數字 caseNo 殘留：${groupByCat.B.length} 筆 → 直接刪除`);
+            lines.push(`  C. UH orphan：${groupByCat.C.length} 筆 → 直接刪除`);
+            lines.push(`  D. 有 company 的佔位：${groupByCat.D.length} 筆 → 先把獨家欄位合併到主案、再刪除`);
+            lines.push('');
+
+            const renderItem = (it, idx) => {
+                const c = it.case;
+                const arr = [];
+                arr.push(`  [${idx}] caseNo=${c.caseNo || '(無)'}  clientName="${c.clientName || ''}"  company="${c.company || ''}"`);
+                arr.push(`       id=${c.id}`);
+                if (it.category === 'D') {
+                    if (it.mergeTarget) {
+                        const t = it.mergeTarget;
+                        arr.push(`       👉 合併目標：${t.caseNo || '(無)'} ${t.clientName || ''} (id=${t.id})`);
+                        const patchKeys = Object.keys(it.mergePatch);
+                        if (patchKeys.length === 0) {
+                            arr.push(`       👉 沒有獨家欄位需要合併（主案都已有資料），可直接刪除`);
+                        } else {
+                            arr.push(`       👉 將合併 ${patchKeys.length} 個獨家欄位：`);
+                            patchKeys.forEach(k => {
+                                const v = it.mergePatch[k];
+                                const val = Array.isArray(v) ? `[${v.length} items]` : (typeof v === 'string' && v.length > 60 ? v.slice(0, 60) + '...' : JSON.stringify(v));
+                                arr.push(`         - ${k} = ${val}`);
+                            });
+                        }
+                    } else {
+                        arr.push(`       ⚠️ 同 company 沒有其他 case 當主案，無法合併。建議：跳過或人工處理`);
+                    }
+                }
+                return arr.join('\n');
+            };
+
+            for (const cat of ['A', 'B', 'C', 'D']) {
+                const list = groupByCat[cat];
+                if (list.length === 0) continue;
+                const catTitle = { A: 'A. EC orphan', B: 'B. 數字 caseNo', C: 'C. UH orphan', D: 'D. 有 company 的佔位' }[cat];
+                lines.push(`━━━ ${catTitle}（${list.length} 筆） ━━━`);
+                list.forEach((it, i) => lines.push(renderItem(it, i + 1)));
+                lines.push('');
+            }
+
+            lines.push('━━━ 注意事項 ━━━');
+            lines.push('1. 本預覽純讀取，沒有動到 Firestore。');
+            lines.push('2. 真執行時會用 Firestore writeBatch：先把 D 類的獨家欄位 update 到主案、再 deleteDoc 所有 junk。');
+            lines.push('3. 真執行前請務必已備份 cases JSON（已備份就無妨）。');
+            lines.push('4. 真執行的入口：點下方「🗑️ 確認執行（清 N 筆）」按鈕。');
+
+            const text = lines.join('\n');
+            const titleEl = document.getElementById('diag-case-title');
+            const bodyEl = document.getElementById('diag-case-body');
+            if (titleEl) titleEl.textContent = `孤立 case 清理預覽 — ${items.length} 筆`;
+            if (bodyEl) bodyEl.textContent = text;
+
+            // 在 modal footer 動態加上「確認執行」按鈕
+            const footer = document.querySelector('#diag-case-modal .p-3.border-t');
+            if (footer) {
+                // 移除舊的執行鈕（如果有）
+                footer.querySelectorAll('.cleanup-exec-btn').forEach(b => b.remove());
+                const btn = document.createElement('button');
+                btn.className = 'cleanup-exec-btn text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded shadow';
+                btn.innerHTML = `<i class="fa-solid fa-trash mr-1"></i>確認執行（清 ${items.length} 筆）`;
+                btn.onclick = () => window.cleanupOrphansExecute();
+                // 插在「複製全文」按鈕前面
+                const copyBtn = footer.querySelector('button[onclick*="diagCopyToClipboard"]');
+                if (copyBtn) footer.insertBefore(btn, copyBtn);
+                else footer.appendChild(btn);
+            }
+
+            document.getElementById('diag-case-modal')?.classList.remove('hidden');
+            console.log('%c=== cleanupOrphansDryRun() ===', 'font-weight:bold;color:#7c3aed');
+            console.log(text);
+        };
+
+        // 真執行：merge D 類獨家欄位 + 刪除所有 junk
+        window.cleanupOrphansExecute = async function() {
+            if (!currentUser) { showToast('❌ 未登入'); return; }
+            const items = _categorizeJunkCases();
+            if (items.length === 0) { showToast('✅ 沒有孤立 case 需要清理'); return; }
+
+            const msg = `將執行以下動作：\n` +
+                `1. 把 D 類佔位的獨家單位欄位合併到主案\n` +
+                `2. 刪除 ${items.length} 筆孤立 case（無法復原）\n\n` +
+                `已備份 cases JSON 嗎？確定繼續？`;
+            if (!confirm(msg)) return;
+
+            const uid = currentUser.uid;
+            let batch = writeBatch(db);
+            let ops = 0;
+            let mergedCount = 0, deletedCount = 0, skippedCount = 0;
+            const errors = [];
+
+            const flush = async () => {
+                if (ops === 0) return;
+                try { await batch.commit(); }
+                catch (err) { errors.push(`batch commit 失敗：${err.message || err}`); }
+                batch = writeBatch(db);
+                ops = 0;
+            };
+
+            for (const it of items) {
+                const c = it.case;
+                try {
+                    // D 類：先 merge unit-level 欄位到主案
+                    if (it.category === 'D') {
+                        if (!it.mergeTarget) {
+                            skippedCount++;
+                            errors.push(`跳過 D 類佔位（無主案可合併）：caseNo=${c.caseNo || '(無)'} id=${c.id}`);
+                            continue;
+                        }
+                        const patchKeys = Object.keys(it.mergePatch);
+                        if (patchKeys.length > 0) {
+                            const patch = { ...it.mergePatch, updatedAt: serverTimestamp(), cleanupMergedAt: new Date().toISOString() };
+                            batch.update(doc(db, 'users', uid, 'cases', it.mergeTarget.id), patch);
+                            ops++;
+                            mergedCount++;
+                        }
+                    }
+                    // 所有類別都刪除 junk 本身
+                    batch.delete(doc(db, 'users', uid, 'cases', c.id));
+                    ops++;
+                    deletedCount++;
+
+                    if (ops >= 400) await flush();
+                } catch (err) {
+                    errors.push(`處理 ${c.caseNo || c.id} 失敗：${err.message || err}`);
+                    skippedCount++;
+                }
+            }
+            await flush();
+
+            const summary = `✅ 清理完成：合併 ${mergedCount} 個欄位 patch、刪除 ${deletedCount} 筆 case${skippedCount ? `、跳過 ${skippedCount} 筆` : ''}`;
+            console.log(summary);
+            if (errors.length > 0) {
+                console.warn('清理過程錯誤：', errors);
+                alert(summary + '\n\n錯誤：\n' + errors.slice(0, 5).join('\n') + (errors.length > 5 ? `\n... 共 ${errors.length} 個錯誤，請看 console` : ''));
+            } else {
+                if (typeof showToast === 'function') showToast(summary);
+                else alert(summary);
+            }
+            document.getElementById('diag-case-modal')?.classList.add('hidden');
+            // onSnapshot 會自動同步 casesData，列表會重新渲染
         };
 
         // 🆕 Phase 0：一鍵備份所有 cases 為 JSON 下載
