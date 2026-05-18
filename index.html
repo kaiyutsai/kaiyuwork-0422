@@ -185,12 +185,23 @@
                         <i class="fa-solid fa-arrows-rotate"></i> 強制覆蓋（Excel 為準）
                     </label>
                     <span class="text-[11px] text-slate-500 ml-1">未勾預設「補空不覆蓋」</span>
-                    <div class="ml-auto flex items-center gap-2">
+                    <div class="ml-auto flex items-center gap-2 flex-wrap">
                         <button type="button" onclick="window.diagSameCompany()" class="text-xs font-bold bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300 px-3 py-1.5 rounded-lg" title="輸入企業名/編號關鍵字，列出所有相符 case 的詳細狀態（看資料是否分散到多筆）">
                             <i class="fa-solid fa-magnifying-glass-chart mr-1"></i>診斷案件狀態
                         </button>
                         <button type="button" onclick="window.fixSwapOwnerInspector()" class="text-xs font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 px-3 py-1.5 rounded-lg" title="把所有「c.inspector 是凱宇/蔡凱宇」的 case 對換 owner ↔ inspector（一次性修復早期匯入的錯位）">
                             <i class="fa-solid fa-right-left mr-1"></i>修復 owner/inspector 對換
+                        </button>
+                        <!-- 🆕 Phase 0：單位結構診斷（read-only） -->
+                        <button type="button" onclick="window.diagUnit()" class="text-xs font-bold bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-300 px-3 py-1.5 rounded-lg" title="按 company 分組所有 case，列出單位數、孤立佔位、同名衝突、workstations 分散狀況。純讀取，不寫入。">
+                            <i class="fa-solid fa-chart-bar mr-1"></i>單位診斷
+                        </button>
+                        <!-- 🆕 Phase 0：一鍵備份（精簡 / 完整 二選一） -->
+                        <button type="button" onclick="window.backupCasesJson('lean')" class="text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-lg" title="把所有 cases 下載為 JSON 檔。精簡版會排除 > 10KB 的 base64 媒體以縮小檔案。">
+                            <i class="fa-solid fa-floppy-disk mr-1"></i>備份 JSON（精簡）
+                        </button>
+                        <button type="button" onclick="if(confirm('完整備份會包含所有 base64 媒體，檔案可能很大（可能超過 50MB），確定要下載嗎？')) window.backupCasesJson('full')" class="text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg" title="完整備份：含所有 base64 媒體。檔案可能很大。">
+                            <i class="fa-solid fa-database mr-1"></i>完整
                         </button>
                     </div>
                 </div>
@@ -1134,8 +1145,25 @@
                                 <i class="fa-solid fa-file-arrow-down mr-1"></i>下載工作站範本
                             </button>
                         </div>
-                        <!-- 凱宇 2026-05-06：單位人員 Excel 匯入已移除，改在工作站內用「AI 辨識訪視前資料」上傳 -->
-                        <p class="text-xs text-slate-500 italic">💡 單位人員資料請在進入工作站後，使用「📷 AI 辨識訪視前資料」上傳廠商提供的 PDF/圖片，AI 自動建立人員清單與工作站</p>
+                        <!-- 單位人員清單匯入 -->
+                        <div class="bg-white rounded-xl border border-amber-200 p-4 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-sm font-bold text-amber-800"><i class="fa-solid fa-users text-emerald-600 mr-1"></i>單位人員清單</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">欄位：<span class="font-bold text-amber-700">編號、姓名、性別、年齡、部門、職稱、年資、工作說明、申請項目</span></p>
+                                </div>
+                                <div class="flex gap-2 shrink-0">
+                                    <button type="button" onclick="window.downloadPersonnelTemplate()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-colors">
+                                        <i class="fa-solid fa-file-arrow-down mr-1"></i>下載範本
+                                    </button>
+                                    <label class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold cursor-pointer hover:bg-emerald-700">
+                                        <i class="fa-solid fa-file-excel mr-1"></i>匯入 Excel
+                                        <input type="file" id="form-company-excel" accept=".xlsx,.xls" class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="form-personnel-preview" class="text-xs text-slate-400 italic">尚未匯入人員（可稍後在工作站內匯入）</div>
+                        </div>
                     </div>
 
                     <div>
@@ -1278,15 +1306,10 @@
                             </button>
                         </div>
 
-                        <!-- 🆕 下載訪視行程表 Word + 整日/半日手動選擇（凱宇 2026-05-06） -->
-                        <div class="mb-3 flex items-center gap-2">
-                            <select id="sched-daypart-mode" class="text-sm border border-slate-300 rounded-lg px-2 py-2 bg-white shrink-0" title="整日/半日標記方式">
-                                <option value="auto">自動（跨中午=整日）</option>
-                                <option value="full">強制整日</option>
-                                <option value="half">強制半日</option>
-                            </select>
+                        <!-- 🆕 下載訪視行程表 Word（統一檔名「訪視行程表」） -->
+                        <div class="mb-3">
                             <button onclick="window.exportTripScheduleDocx(document.getElementById('sched-date-input').value, 'outcome')"
-                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow active:scale-95 transition-all">
+                                    class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow active:scale-95 transition-all">
                                 <i class="fa-solid fa-file-word mr-1"></i>下載訪視行程表 (Word)
                             </button>
                         </div>
@@ -2448,7 +2471,16 @@
                     </div>
                 </div>
 
-                <!-- 工作站列表已移到右側主畫面（凱宇 2026-05-06）— 左欄不再放摺疊選單 -->
+                <!-- 工作站列表 -->
+                <div class="p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-slate-700"><i class="fa-solid fa-layer-group text-blue-500 mr-1"></i>工作站列表</h3>
+                        <button id="elder-btn-add-ws" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fa-solid fa-plus mr-1"></i>新增</button>
+                    </div>
+                    <div id="elder-ws-list" class="space-y-2">
+                        <p class="text-xs text-slate-400 text-center py-4">尚無工作站</p>
+                    </div>
+                </div>
 
                 <!-- 下載參考資料（文字檔 + 評估參考 Word + 現場照片） -->
                 <div class="p-4 border-t border-slate-100 shrink-0 flex flex-col gap-2">
@@ -2462,23 +2494,7 @@
             <!-- ➡️ 右側主工作區 -->
             <div id="elder-main-area" class="flex-1 overflow-y-auto p-4 md:p-6 pb-20">
 
-                <!-- 🆕 工作站切換 + 新增 + AI 辨識訪視前資料（凱宇 2026-05-06） -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 mb-4">
-                    <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-                        <h3 class="font-bold text-base text-slate-700"><i class="fa-solid fa-layer-group text-blue-500 mr-1"></i>工作站切換</h3>
-                        <div class="flex gap-2">
-                            <button id="elder-btn-ai-intake" class="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-purple-700 shadow active:scale-95" title="上傳廠商訪視前提供的 PDF/圖片，AI 自動建立工作站與人員">
-                                <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AI 辨識訪視前資料
-                            </button>
-                            <button id="elder-btn-add-ws" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-700 shadow active:scale-95">
-                                <i class="fa-solid fa-plus mr-1"></i>新增工作站
-                            </button>
-                        </div>
-                    </div>
-                    <div id="elder-ws-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        <p class="text-xs text-slate-400 text-center py-4 col-span-full">尚無工作站，點「AI 辨識訪視前資料」自動建立，或「+新增工作站」手動建</p>
-                    </div>
-                </div>
+                <!-- 「工作區切換」區塊已移除：跟左欄「工作站列表」重複，統一到左欄一處新增/切換 -->
 
                 <div class="hidden bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl border border-amber-200 shadow-sm overflow-hidden mb-4">
                     <button onclick="document.getElementById('elder-opening-body').classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')" class="w-full flex items-center justify-between p-4 hover:bg-amber-100 transition-colors">
@@ -2505,15 +2521,17 @@
 
                     <div id="elder-personnel-record-shell" class="space-y-5">
 
-                        <!-- 工作站名稱 + 操作（凱宇 2026-05-06：合併到同一 row，按鈕緊湊不分散） -->
-                        <div class="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <input type="text" id="elder-ws-name-v2" class="flex-1 min-w-[160px] text-xl md:text-2xl font-black text-slate-800 bg-transparent border-b-2 border-amber-300 focus:outline-none focus:border-amber-500 pb-1" placeholder="工作站名稱（如：包裝作業區）">
-                                <button id="elder-btn-save-ws-v2" class="bg-slate-800 text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-slate-700 shadow shrink-0 active:scale-95">
-                                    <i class="fa-solid fa-floppy-disk mr-1"></i>儲存
+                        <!-- 工作站名稱 -->
+                        <div class="bg-white rounded-2xl p-5 md:p-6 border border-slate-200 shadow-sm">
+                            <div class="flex items-center gap-3 mb-3">
+                                <input type="text" id="elder-ws-name-v2" class="flex-1 text-xl md:text-2xl font-black text-slate-800 bg-transparent border-b-2 border-amber-300 focus:outline-none focus:border-amber-500 pb-1" placeholder="工作站名稱（如：包裝作業區）">
+                                <button id="elder-btn-save-ws-v2" class="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-700 shadow shrink-0">
+                                    <i class="fa-solid fa-floppy-disk mr-2"></i>儲存工作站
                                 </button>
-                                <button id="elder-btn-delete-ws-v2" class="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 px-3 py-2 rounded-lg border border-red-200 text-sm font-bold transition-colors shrink-0">
-                                    <i class="fa-solid fa-trash mr-1"></i>刪除
+                            </div>
+                            <div class="flex justify-end">
+                                <button id="elder-btn-delete-ws-v2" class="text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-xs font-bold transition-colors">
+                                    <i class="fa-solid fa-trash mr-1"></i>刪除工作站
                                 </button>
                             </div>
                         </div>
@@ -2540,11 +2558,6 @@
                         <div class="bg-white rounded-2xl p-5 md:p-6 border border-slate-200 shadow-sm">
                             <h3 class="font-bold text-lg text-slate-700 mb-3"><i class="fa-solid fa-clipboard-list text-blue-500 mr-2"></i>1. 工作內容及流程</h3>
                             <textarea id="elder-ws-work-process" rows="4" class="auto-resize w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-400 text-base" placeholder="說明此工作站的主要作業內容、操作流程、班別、工作量等..."></textarea>
-                            <!-- 🆕 凱宇 2026-05-06：AI 自動列待測客觀數據清單 + 現場備註 -->
-                            <div class="mt-3">
-                                <label class="text-sm font-bold text-slate-600 block mb-1"><i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i>現場備註 / 客觀數據待測（AI 提醒）</label>
-                                <textarea id="elder-ws-site-notes" rows="6" class="auto-resize w-full p-3 border border-amber-200 rounded-xl bg-amber-50 focus:bg-white focus:ring-2 focus:ring-amber-400 text-sm" placeholder="AI 辨識後會自動列出該工作站需要量測的客觀數據（噪音/亮度/重量/時數等），訪視時填數值"></textarea>
-                            </div>
                         </div>
 
                         <!-- 3. 申請品項及數量（工作站共用，可標示共用或指定人員） -->
@@ -3303,393 +3316,6 @@
         // 搜尋輸入即時觸發
         document.getElementById('master-table-search')?.addEventListener('input', () => window.renderMasterTable());
 
-        // ==========================================================================
-        // 🆕 AI 辨識訪視前資料（凱宇 2026-05-06）
-        //   - Excel：SheetJS 解析 + 合併儲存格 forward-fill
-        //   - PDF/圖片：Gemini AI 辨識
-        //   - 結構化 → 預覽 modal → 勾選 → merge 寫入 c.companyPersonnel + c.workstations
-        //   - 配對策略：人員姓名 exact match merge、工作站名稱 exact match merge
-        // ==========================================================================
-        let _aiIntakeParsed = null;   // { personnel: [...], workstations: [...] }
-
-        // 共用 prompt：強化「沒明確工作區時，AI 從設備/職稱/工作說明自動推論工作區」
-        const _AI_INTAKE_PROMPT = `這是廠商提供的「職務再設計訪視前資料」。請抽取人員與工作站資料。
-
-輸出 **JSON 物件**（不含說明文字、不含 markdown code fence），格式：
-{
-  "personnel": [
-    {"seqNo":"","name":"","gender":"","age":"","department":"","title":"","seniority":"","workDesc":"","difficulties":"","expectedItems":"","workstation":""}
-  ],
-  "workstations": [
-    {
-      "name":"", "members":["姓名1","姓名2"],
-      "description":"", "equipment":"", "vendorRequest":"", "siteNotes":"",
-      "appliedItems":[
-        {"text":"設備/品項名","qty":"1","isShared":true,"members":["姓名1","姓名2","姓名3"]}
-      ]
-    }
-  ]
-}
-
-【🔑 主軸：以「設備/品項」為工作站分組基礎（凱宇 2026-05-06 強調）】
-0. **以設備/品項為主軸**分組工作站（不是部門也不是職稱）
-   - 廠商常見 Excel 格式：橫排設備品項、直欄人員姓名、打「V/✓/勾」表此人使用該設備
-   - 設備欄常有「**共用**」欄 + 「**數量**」欄（例:堆高機 / V 共用 / 1 台 → 多人共用 1 台）
-   - 同一設備被多人勾選 → **這幾個人都歸到該設備對應的工作站**
-   - 同人若使用多種不同類設備 → **此人重複出現在多個工作站的 members 中**（同人姓名多次納編 OK）
-   - workstations[].equipment 寫設備名 + 數量 + 共用標記（例:「升降椅 × 3 台」「堆高機 × 1 台共用」）
-
-【🔑 範例：得意中華食品】
-   廠商提供：「H 型鋼 6 位共用 1 台」+「2 位加工雞腳」
-   AI 應輸出：
-   - workstation A: name="包裝區" (因 H 型鋼是包裝/搬運用)
-       members=[全 6 位]
-       equipment="H 型鋼 × 1 台共用"
-       appliedItems=[{text:"H 型鋼", qty:"1", isShared:true, members:[全 6 位]}]
-   - workstation B: name="加工區" (剪雞腳屬加工作業)
-       members=[那 2 位]（也在 A 出現過）
-       equipment="剪雞腳設備"
-       appliedItems=[{text:"剪雞腳設備", qty:"", isShared:true, members:[那 2 位]}]
-   → **同 2 位人員在 A 跟 B 的 members 都出現** = 此人在多工作區重複納編
-
-【申請品項及數量規則 — 凱宇 2026-05-06 加強】
-   - workstations[].appliedItems 是該工作站申請的設備/品項陣列
-   - 每筆 {text:"品項名", qty:"數量", isShared:true/false, members:["姓名陣列"]}
-   - **isShared=true**：共用設備（多人輪用 1-N 台）
-   - **isShared=false**：指定人員專用（personnelIds 指定哪幾人）
-   - members 是該品項實際使用者姓名（從工作站 members 中精準對應）
-   - 若廠商標「共用 N 台」、qty=N、isShared=true、members 列全部使用者
-   - 若廠商標單人專用（如客製化升降椅）、qty=1、isShared=false、members 列該人
-
-【關鍵推論規則】
-1. **若廠商已明確分組工作區/部門**（合併儲存格、表格分欄），直接用該分組
-2. **若廠商「只列設備不分工作區」** — 你要**自己推論工作區名稱**（業界常用稱呼），例如：
-   - 堆高機 / 棧板 / 推車 → 「倉儲區」或「物流區」
-   - 電腦 / 螢幕 / 印表機 / 鍵盤 → 「文書處理區」或「行政區」
-   - 烤箱 / 油炸機 / 攪拌機 → 「烘焙區」或「廚房區」
-   - 包裝機 / 封箱機 / 標籤機 → 「包裝區」
-   - 縫紉機 / 剪裁工具 → 「製衣區」
-   - 升降椅 / 桌面墊高 / 護具 → 「個人工作區」
-3. **若廠商列「職稱+設備」沒分組** — 用職稱輔助推論（例如「組長 + 標籤機」→ 包裝區組長）
-4. **同類設備/同部門/同職稱** — 合併成一個工作站
-5. **同人若屬多個工作站**，請各別列出對應 ws
-6. **沒填的欄位給空字串 ""**，不要省略 key
-7. **workstations[].members** 是該工作站對應的人員姓名陣列（從 personnel 中抓姓名）
-8. **workstations[].equipment** 描述該工作站需要的設備（簡短條列）
-9. **workstations[].description** 描述該工作站的工作性質
-10. **嚴格 JSON**，可被 JSON.parse() 直接解析
-
-【🆕 報告資訊抽取規則 — 凱宇 2026-05-06 加強】
-11. **personnel.workDesc**：從廠商給的「工作內容/職責/班別」抽取；若只有職稱，依職稱常識補簡短描述（例「廠長：負責現場管理、人員調度、品質檢查」）
-12. **personnel.difficulties**：從廠商提到的「困擾/障礙/不便/年齡相關限制」抽取；若沒明寫但年齡>60 或職稱涉及搬重，可加合理推論（例「需長時間搬運包裝箱，肩頸負擔大」）
-13. **personnel.expectedItems**：抽廠商列的輔具/設備/改善項目；若該人員設備明確（例堆高機操作員），自動補對應建議（例「升降椅、防滑鞋墊」）
-14. **workstations.description**：用「常見作業流程」寫一段簡短流程描述（不要量化數據，例如包裝區寫「產品上架→秤重→裝箱→封箱→標籤→出貨」、廚房寫「備料→烹調→出餐→清潔」），用於報告「工作內容及流程」段落 — 客觀數據（噪音、亮度、搬運重量）留空，凱宇訪視時補
-15. **workstations.equipment**：條列現有設備（用於報告「現有設備」段落）
-16. **workstations.vendorRequest**：擷取廠商主動表達的需求、希望改善的痛點（用於報告「廠商需求」段落，若沒提就空字串）
-17. **workstations.siteNotes**：**重點 — 自動列出「待測量客觀數據清單」當訪視提醒**（凱宇訪視時要量測補進來），格式範例：
-   - 包裝區：「⚠ 訪視待測：① 環境噪音 dB ② 照明亮度 Lux ③ 單次搬運重量 kg ④ 連續站立時數 ⑤ 工作檯高度 cm ⑥ 班別/工時」
-   - 廚房：「⚠ 訪視待測：① 環境溫度 ℃ ② 油煙/噪音 ③ 連續站立時數 ④ 重物搬運重量 ⑤ 防滑/防燙措施」
-   - 倉儲：「⚠ 訪視待測：① 通道寬度 cm ② 單次搬運重量 kg ③ 堆高機/推車操作頻率 ④ 工作環境溫濕度 ⑤ 照明 Lux」
-   - 文書區：「⚠ 訪視待測：① 螢幕高度/距離 ② 椅子高度 ③ 連續坐姿時數 ④ 桌面雜物配置 ⑤ 照明 Lux」
-   依工作站性質列 5-7 個**該量測的關鍵客觀指標**，前綴加「⚠ 訪視待測：」，用 ① ② ③ 編號條列。後續觀察重點、安全/衛生疑慮也可加上去。
-
-且 personnel 物件擴充加 "difficulties":""，workstations 物件擴充加 "vendorRequest":"" 與 "siteNotes":""（即使空字串也保留 key）`;
-
-        // 凱宇 2026-05-06：Excel 也走 AI 辨識（先 SheetJS 轉 text，再丟 Gemini 提取）
-        // 比純規則 parse 彈性更高（合併儲存格、欄位順序變動、廠商各種版型都能處理）
-        async function _aiIntakeParseExcel(file) {
-            const wb = await parseXlsxSafely(file);
-            const apiKey = settings?.geminiApiKey || '';
-            if (!apiKey) throw new Error('未設定 Gemini API Key（請至「系統設定」貼上）');
-            // 把所有 sheet 轉成 plain text（含合併儲存格 forward-fill）
-            const sheetTexts = [];
-            for (const sn of wb.SheetNames) {
-                const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true });
-                if (!aoa.length) continue;
-                // forward-fill 跨整個 sheet（前一列同 col 有值就補空 — 模擬合併儲存格展開）
-                const filled = aoa.map(r => [...r]);
-                for (let r = 1; r < filled.length; r++) {
-                    for (let c = 0; c < filled[r].length; c++) {
-                        if ((filled[r][c] === '' || filled[r][c] == null) && filled[r-1][c] !== '' && filled[r-1][c] != null) {
-                            filled[r][c] = filled[r-1][c];
-                        }
-                    }
-                }
-                const tsv = filled.map(r => r.map(c => String(c == null ? '' : c).replace(/\t/g, ' ')).join('\t')).join('\n');
-                sheetTexts.push(`--- Sheet: ${sn} ---\n${tsv}`);
-            }
-            const fullText = sheetTexts.join('\n\n');
-            const prompt = `${_AI_INTAKE_PROMPT}\n\nExcel 內容（已轉成 TSV 文字、合併儲存格 forward-fill）：\n${fullText.slice(0, 30000)}`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
-            };
-            const result = await fetchGeminiWithFallback(apiKey, payload);
-            const txt = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            let jsonStr = txt.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-            try {
-                return JSON.parse(jsonStr);
-            } catch (e) {
-                console.error('[AI Intake Excel] JSON parse 失敗', txt);
-                throw new Error('AI 回傳格式異常，請重試或改用 PDF/圖片');
-            }
-        }
-
-        async function _aiIntakeParseAI(file) {
-            const apiKey = settings?.geminiApiKey || '';
-            if (!apiKey) throw new Error('未設定 Gemini API Key（請至「系統設定」貼上）');
-            const fileToB64 = (f) => new Promise((res, rej) => {
-                const r = new FileReader();
-                r.onloadend = () => res(r.result.split(',')[1]);
-                r.onerror = () => rej(new Error('讀檔失敗'));
-                r.readAsDataURL(f);
-            });
-            const b64 = await fileToB64(file);
-            const mimeType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/png');
-            const prompt = _AI_INTAKE_PROMPT;
-            const payload = {
-                contents: [{ parts: [
-                    { inline_data: { mime_type: mimeType, data: b64 } },
-                    { text: prompt }
-                ]}],
-                generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
-            };
-            const result = await fetchGeminiWithFallback(apiKey, payload);
-            const txt = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            // 嘗試解析（去掉可能 code fence）
-            let jsonStr = txt.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-            try {
-                return JSON.parse(jsonStr);
-            } catch (e) {
-                console.error('[AI Intake] JSON parse 失敗', txt);
-                throw new Error('AI 回傳格式異常，請改用 Excel 範本或重試');
-            }
-        }
-
-        function _aiIntakeRenderPreview(parsed) {
-            _aiIntakeParsed = parsed;
-            document.getElementById('ai-intake-personnel-count').textContent = (parsed.personnel || []).length;
-            document.getElementById('ai-intake-ws-count').textContent = (parsed.workstations || []).length;
-            const c = getCurrentElderCase();
-            const existingNames = new Set(((c?.companyPersonnel) || []).map(p => String(p.name || '').trim()));
-            const existingWsNames = new Set(((c?.workstations) || []).map(w => String(w.name || '').trim()));
-            // personnel list
-            const pl = document.getElementById('ai-intake-personnel-list');
-            pl.innerHTML = (parsed.personnel || []).map((p, i) => {
-                const dup = existingNames.has(String(p.name || '').trim());
-                const tag = dup ? `<span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded ml-1">已存在 → merge 補欄位</span>` : '';
-                const detail = [p.gender, p.age, p.title, p.workstation].filter(Boolean).join(' / ');
-                return `<label class="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
-                    <input type="checkbox" class="ai-intake-p-chk w-4 h-4 accent-purple-600" data-idx="${i}" checked>
-                    <span class="text-xs flex-1"><b>${p.name||'(無)'}</b> ${detail ? '<span class="text-slate-500"> - ' + detail + '</span>' : ''}${tag}</span>
-                </label>`;
-            }).join('') || '<p class="text-xs text-slate-400 text-center py-2">無人員</p>';
-            // ws list — 凱宇 2026-05-06：詳細顯示 AI 抽到的欄位讓使用者 verify
-            const wl = document.getElementById('ai-intake-ws-list');
-            const _esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-            wl.innerHTML = (parsed.workstations || []).map((w, i) => {
-                const dup = existingWsNames.has(String(w.name || '').trim());
-                const tag = dup ? `<span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded ml-1">已存在 → merge 人員</span>` : '';
-                const memberCnt = (w.members || []).length;
-                const itemsCnt = (w.appliedItems || []).length;
-                const fields = [];
-                if (w.description) fields.push(`<div class="text-[11px] text-slate-600 mt-1"><b class="text-blue-700">流程:</b> ${_esc(w.description).slice(0, 200)}</div>`);
-                else fields.push(`<div class="text-[11px] text-rose-500 mt-1">⚠ AI 沒抓到「流程」(description 空)</div>`);
-                if (w.equipment) fields.push(`<div class="text-[11px] text-slate-600"><b class="text-emerald-700">設備:</b> ${_esc(w.equipment).slice(0, 200)}</div>`);
-                else fields.push(`<div class="text-[11px] text-rose-500">⚠ AI 沒抓到「設備」(equipment 空)</div>`);
-                if (w.siteNotes) fields.push(`<div class="text-[11px] text-slate-600"><b class="text-amber-700">待測:</b> ${_esc(w.siteNotes).slice(0, 200)}</div>`);
-                else fields.push(`<div class="text-[11px] text-rose-500">⚠ AI 沒抓到「現場備註/待測」(siteNotes 空)</div>`);
-                if (itemsCnt > 0) fields.push(`<div class="text-[11px] text-slate-600"><b class="text-purple-700">品項:</b> ${(w.appliedItems || []).map(i => `${_esc(i.text)}×${i.qty||'?'}`).join('、')}</div>`);
-                else fields.push(`<div class="text-[11px] text-rose-500">⚠ AI 沒抓到「品項」(appliedItems 空)</div>`);
-                if (w.vendorRequest) fields.push(`<div class="text-[11px] text-slate-600"><b class="text-cyan-700">廠商需求:</b> ${_esc(w.vendorRequest).slice(0, 200)}</div>`);
-                return `<label class="flex items-start gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border border-slate-200">
-                    <input type="checkbox" class="ai-intake-w-chk w-4 h-4 accent-purple-600 mt-0.5" data-idx="${i}" checked>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-xs"><b>${_esc(w.name)||'(無名)'}</b> <span class="text-slate-500">(${memberCnt} 人 · ${itemsCnt} 品項)</span>${tag}</div>
-                        ${fields.join('')}
-                    </div>
-                </label>`;
-            }).join('') || '<p class="text-xs text-slate-400 text-center py-2">無工作站</p>';
-            document.getElementById('ai-intake-preview').classList.remove('hidden');
-            document.getElementById('ai-intake-confirm-btn').classList.remove('hidden');
-        }
-
-        document.getElementById('elder-btn-ai-intake')?.addEventListener('click', () => {
-            // 重置 modal
-            document.getElementById('ai-intake-file').value = '';
-            document.getElementById('ai-intake-status').classList.add('hidden');
-            document.getElementById('ai-intake-preview').classList.add('hidden');
-            document.getElementById('ai-intake-confirm-btn').classList.add('hidden');
-            _aiIntakeParsed = null;
-            document.getElementById('ai-intake-modal').classList.remove('hidden');
-        });
-
-        document.getElementById('ai-intake-file')?.addEventListener('change', async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            const status = document.getElementById('ai-intake-status');
-            status.classList.remove('hidden');
-            status.className = 'text-xs text-blue-600 mt-2';
-            status.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>解析中...';
-            try {
-                const isExcel = /\.(xlsx?|xls)$/i.test(file.name);
-                const parsed = isExcel ? await _aiIntakeParseExcel(file) : await _aiIntakeParseAI(file);
-                if (!parsed.personnel?.length && !parsed.workstations?.length) {
-                    status.className = 'text-xs text-amber-700 mt-2';
-                    status.textContent = '⚠ 沒解析到人員或工作站，請檢查檔案格式';
-                    return;
-                }
-                status.className = 'text-xs text-emerald-700 mt-2';
-                status.innerHTML = `✅ AI 解析完成：${parsed.personnel?.length || 0} 人 / ${parsed.workstations?.length || 0} 工作站`;
-                _aiIntakeRenderPreview(parsed);
-            } catch (err) {
-                console.error('[AI Intake] 解析失敗', err);
-                status.className = 'text-xs text-rose-700 mt-2';
-                status.textContent = '❌ 解析失敗：' + (err.message || err);
-            }
-        });
-
-        window.aiIntakeCopyRaw = function() {
-            if (!_aiIntakeParsed) { showToast('還沒解析資料'); return; }
-            const txt = JSON.stringify(_aiIntakeParsed, null, 2);
-            try {
-                navigator.clipboard.writeText(txt).then(() => showToast('✓ 已複製 AI 原始 JSON'));
-            } catch(e) {
-                const ta = document.createElement('textarea');
-                ta.value = txt; document.body.appendChild(ta); ta.select();
-                try { document.execCommand('copy'); showToast('✓ 已複製'); } catch(e2) { showToast('❌ 複製失敗'); }
-                document.body.removeChild(ta);
-            }
-        };
-
-        window.aiIntakeConfirm = async function() {
-            if (!_aiIntakeParsed || !currentUser || !currentElderCaseId) return;
-            const c = getCurrentElderCase();
-            if (!c) { showToast('找不到當前 case'); return; }
-            const pChks = [...document.querySelectorAll('.ai-intake-p-chk:checked')].map(x => parseInt(x.dataset.idx));
-            const wChks = [...document.querySelectorAll('.ai-intake-w-chk:checked')].map(x => parseInt(x.dataset.idx));
-            // ---- personnel merge（凱宇選 1.A：姓名 exact match）----
-            // 🆕 凱宇 2026-05-06：先 dedupe AI 回傳的 personnel（AI 偶爾重複同人），按姓名去重保留第一筆
-            const _seenAINames = new Set();
-            _aiIntakeParsed.personnel = (_aiIntakeParsed.personnel || []).filter(p => {
-                const k = String(p.name || '').trim();
-                if (!k || _seenAINames.has(k)) return false;
-                _seenAINames.add(k);
-                return true;
-            });
-            const existingP = c.companyPersonnel || [];
-            const byName = new Map(existingP.map(p => [String(p.name || '').trim(), p]));
-            pChks.forEach(idx => {
-                const np = _aiIntakeParsed.personnel[idx];
-                if (!np) return;
-                const key = String(np.name || '').trim();
-                if (!key) return;
-                if (byName.has(key)) {
-                    // merge：既有 + 補新欄位（既有有值優先；空欄位用 AI 抓的補上）
-                    const old = byName.get(key);
-                    const merged = {
-                        ...np, ...old,
-                        title: old.title || np.title || '',
-                        department: old.department || np.department || '',
-                        seniority: old.seniority || np.seniority || '',
-                        workDesc: old.workDesc || np.workDesc || '',
-                        difficulties: old.difficulties || np.difficulties || '',   // 🆕 困擾障礙
-                        expectedItems: old.expectedItems || np.expectedItems || '',
-                    };
-                    byName.set(key, merged);
-                } else {
-                    byName.set(key, {
-                        id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
-                        ...np,
-                    });
-                }
-            });
-            const newPersonnel = [...byName.values()];
-            // ---- workstations merge（凱宇選 2.A：名稱 exact match）----
-            const existingWs = c.workstations || [];
-            const wsByName = new Map(existingWs.map(w => [String(w.name || '').trim(), w]));
-            wChks.forEach(idx => {
-                const nw = _aiIntakeParsed.workstations[idx];
-                if (!nw || !String(nw.name || '').trim()) return;
-                const key = String(nw.name).trim();
-                // 把 members（姓名陣列）對映到 personnel id
-                const memberIds = (nw.members || [])
-                    .map(memName => byName.get(String(memName).trim())?.id)
-                    .filter(Boolean);
-                // 🆕 處理 AI 抓的 appliedItems → 轉成 requestedItems schema
-                // 把 members 姓名對映成 personnel.id
-                const _appliedItems = (nw.appliedItems || []).map(it => {
-                    const memberPids = (it.members || [])
-                        .map(memName => byName.get(String(memName).trim())?.id)
-                        .filter(Boolean);
-                    return {
-                        text: it.text || '',
-                        qty: it.qty || '',
-                        isShared: it.isShared !== false,   // 預設 true（共用）
-                        personnelIds: memberPids,
-                    };
-                });
-                if (wsByName.has(key)) {
-                    const old = wsByName.get(key);
-                    const mergedIds = [...new Set([...(old.personnelIds || []), ...memberIds])];
-                    const oldItems = old.requestedItems || [];
-                    const oldItemTexts = new Set(oldItems.map(i => String(i.text || '').trim()));
-                    const newItems = _appliedItems.filter(i => !oldItemTexts.has(String(i.text || '').trim()));
-                    wsByName.set(key, {
-                        ...old,
-                        personnelIds: mergedIds,
-                        // 🆕 對映到既有 ws 欄位（workProcess 是真欄位名，不是 processFlow）
-                        workProcess: old.workProcess || nw.description || '',
-                        equipment: old.equipment || nw.equipment || '',
-                        vendorRequest: old.vendorRequest || nw.vendorRequest || '',
-                        siteNotes: old.siteNotes || nw.siteNotes || '',
-                        requestedItems: [...oldItems, ...newItems],
-                    });
-                } else {
-                    wsByName.set(key, {
-                        id: 'ws_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
-                        name: key,
-                        personnelIds: memberIds,
-                        records: [],
-                        photos: [],
-                        audios: [],
-                        workProcess: nw.description || '',
-                        equipment: nw.equipment || '',
-                        vendorRequest: nw.vendorRequest || '',
-                        siteNotes: nw.siteNotes || '',
-                        requestedItems: _appliedItems,
-                    });
-                }
-            });
-            const newWs = [...wsByName.values()];
-            // 寫回
-            try {
-                await updateDoc(doc(db, 'users', currentUser.uid, 'cases', currentElderCaseId), {
-                    companyPersonnel: newPersonnel,
-                    workstations: newWs,
-                    updatedAt: serverTimestamp(),
-                });
-                c.companyPersonnel = newPersonnel;
-                c.workstations = newWs;
-                showToast(`✅ 已寫入：${pChks.length} 人 / ${wChks.length} 工作站`);
-                document.getElementById('ai-intake-modal').classList.add('hidden');
-                renderElderCompanyPersonnel(newPersonnel, newWs);
-                renderElderWorkstationList(newWs);
-                // 🆕 凱宇 2026-05-06：AI 寫入後自動 select 第一個 AI 新建的工作站，textarea 立刻 load 內容
-                // 找剛剛 AI 確認勾選的第一個 ws name
-                const firstAiWsName = wChks.length > 0 ? String(_aiIntakeParsed.workstations[wChks[0]]?.name || '').trim() : '';
-                const targetWs = firstAiWsName ? newWs.find(w => String(w.name || '').trim() === firstAiWsName) : null;
-                if (targetWs && typeof window.selectElderWorkstation === 'function') {
-                    window.selectElderWorkstation(targetWs.id);
-                } else if (currentWorkstationId && typeof window.selectElderWorkstation === 'function') {
-                    // fallback：若當前已選某 ws，重 load 它（可能 merge 過已含 AI 資料）
-                    window.selectElderWorkstation(currentWorkstationId);
-                }
-            } catch (err) {
-                showToast('❌ 寫入失敗：' + (err.message || err));
-            }
-        };
-
         // 🆕 一鍵整理同單位 case：依當前診斷的關鍵字找到的同 company case，集中工作站 + 清殘留 + 補地址 + 修日期
         window.fixUnitConsolidate = async function() {
             if (!currentUser) { showToast('請先登入'); return; }
@@ -3776,6 +3402,216 @@
                 ta.select();
                 try { document.execCommand('copy'); showToast('✓ 已複製'); } catch(e2) { showToast('❌ 複製失敗'); }
                 document.body.removeChild(ta);
+            }
+        };
+
+        // ============================================================
+        // 🆕 Phase 0：單位結構診斷工具（read-only，不寫入 Firestore）
+        // 目的：在規劃 units collection 之前，先看清楚現在 cases 按 company
+        //       分組後的實況，估出單位數、孤立佔位、同名衝突等。
+        // ============================================================
+        window.diagUnit = function() {
+            const all = (casesData || []).slice();
+            const total = all.length;
+
+            // 正規化公司名：trim、全形空白→半形、合併空白
+            const normCompany = (s) => String(s || '').trim().replace(/　/g, ' ').replace(/\s+/g, ' ');
+
+            // 分組
+            const groups = new Map();   // normalized → { raws:Set, cases:[] }
+            const orphans = [];          // 沒 company 的 cases
+            const placeholders = [];     // clientName 含「（工作站案件）」的 case
+            all.forEach(c => {
+                const norm = normCompany(c.company);
+                if (!norm) { orphans.push(c); return; }
+                if (!groups.has(norm)) groups.set(norm, { raws: new Set(), cases: [] });
+                const g = groups.get(norm);
+                g.raws.add(String(c.company || ''));
+                g.cases.push(c);
+                if (/工作站案件/.test(String(c.clientName || ''))) placeholders.push(c);
+            });
+
+            // 排序：按 case 數 DESC
+            const groupList = [...groups.entries()].sort((a, b) => b[1].cases.length - a[1].cases.length);
+
+            // 各種統計
+            const isDis = (c) => /身心障礙|單側/.test(String(c.category || ''));
+            const isElder = (c) => /中高齡|工作站|勞工就業通/.test(String(c.category || ''));
+            const elderUnitGroups = groupList.filter(([_, g]) => g.cases.some(isElder));
+            const disOnlyGroups = groupList.filter(([_, g]) => g.cases.every(isDis));
+            const mixedGroups = groupList.filter(([_, g]) => g.cases.some(isDis) && g.cases.some(isElder));
+
+            // 同名單位的 owner 不一致
+            const ownerInconsistent = [];
+            for (const [norm, g] of groupList) {
+                const owners = new Set(g.cases.map(c => String(c.owner || '').trim()).filter(Boolean));
+                if (owners.size > 1) ownerInconsistent.push({ norm, owners: [...owners] });
+            }
+            // 同名但 raw 字串有差（空白/全形差異）
+            const rawVariants = groupList.filter(([_, g]) => g.raws.size > 1);
+
+            // 「（工作站案件）」佔位細分：單位裡只有它一個 vs 有其他人
+            const phLonely = [];   // 單位只有佔位
+            const phMixed = [];    // 佔位 + 其他真實成員
+            for (const c of placeholders) {
+                const g = groups.get(normCompany(c.company));
+                if (!g) continue;
+                const others = g.cases.filter(x => x !== c && !/工作站案件/.test(String(x.clientName || '')));
+                if (others.length === 0) phLonely.push(c); else phMixed.push(c);
+            }
+
+            // 工作站資料分佈：哪些 case 有 workstations
+            const wsCarriers = all.filter(c => Array.isArray(c.workstations) && c.workstations.length > 0);
+            const groupsWithMultipleWsCarriers = groupList
+                .filter(([_, g]) => g.cases.filter(c => (c.workstations || []).length > 0).length > 1);
+
+            const lines = [];
+            lines.push('=== 單位結構診斷報告（Phase 0）===');
+            lines.push(`產出時間：${new Date().toLocaleString('zh-TW')}`);
+            lines.push(`登入帳號：${currentUser?.email || '(未登入)'}`);
+            lines.push('');
+            lines.push('━━━ 總覽 ━━━');
+            lines.push(`總 case 數：              ${total}`);
+            lines.push(`單位數（按 company 分組）：${groups.size}`);
+            lines.push(`  ├ 純身障單位：         ${disOnlyGroups.length}`);
+            lines.push(`  ├ 含中高/勞通單位：    ${elderUnitGroups.length}`);
+            lines.push(`  └ 混合單位（有問題）： ${mixedGroups.length}`);
+            lines.push(`沒填 company 的孤立 case：${orphans.length}`);
+            lines.push(`「（工作站案件）」佔位：  ${placeholders.length}`);
+            lines.push(`  ├ 單位只有佔位、沒真人：${phLonely.length}`);
+            lines.push(`  └ 佔位 + 真實成員並存：${phMixed.length}`);
+            lines.push(`同單位 owner 不一致：     ${ownerInconsistent.length}`);
+            lines.push(`同單位 company 字串有差： ${rawVariants.length}`);
+            lines.push(`有 workstations 的 case： ${wsCarriers.length}`);
+            lines.push(`單位內多筆 case 都有 ws：${groupsWithMultipleWsCarriers.length}  ← 這些就是「分散」嚴重的單位`);
+            lines.push('');
+
+            // 詳細：單位列表
+            lines.push('━━━ 單位明細（按 case 數降序） ━━━');
+            groupList.forEach(([norm, g], i) => {
+                const cats = [...new Set(g.cases.map(c => c.category).filter(Boolean))];
+                const owners = [...new Set(g.cases.map(c => c.owner).filter(Boolean))];
+                const inspectors = [...new Set(g.cases.map(c => c.inspector).filter(Boolean))];
+                const districts = [...new Set(g.cases.map(c => c.district).filter(Boolean))];
+                const wsCount = g.cases.reduce((s, c) => s + ((c.workstations || []).length), 0);
+                const wsCarrierCount = g.cases.filter(c => (c.workstations || []).length > 0).length;
+                const phCount = g.cases.filter(c => /工作站案件/.test(String(c.clientName || ''))).length;
+                const photoCount = g.cases.reduce((s, c) => s + ((c.photos || []).length), 0);
+                const audioCount = g.cases.reduce((s, c) => s + ((c.audios || []).length), 0);
+
+                lines.push(`【${i + 1}】 ${norm}`);
+                if (g.raws.size > 1) {
+                    lines.push(`     ⚠️ 原始字串變體：${[...g.raws].map(s => `"${s}"`).join(' / ')}`);
+                }
+                lines.push(`     case 數：${g.cases.length}  類別：${cats.join('、') || '-'}`);
+                lines.push(`     owner：${owners.join('、') || '-'}${owners.length > 1 ? '  ⚠️ 不一致' : ''}`);
+                lines.push(`     inspector：${inspectors.join('、') || '-'}`);
+                lines.push(`     district：${districts.join('、') || '-'}`);
+                lines.push(`     workstations 總數：${wsCount}（分散在 ${wsCarrierCount} 筆 case）${wsCarrierCount > 1 ? '  ⚠️ 分散' : ''}`);
+                lines.push(`     佔位「（工作站案件）」：${phCount}`);
+                lines.push(`     photos：${photoCount}  audios：${audioCount}`);
+                lines.push(`     成員：`);
+                g.cases.forEach(c => {
+                    const isPh = /工作站案件/.test(String(c.clientName || ''));
+                    const wsTag = (c.workstations || []).length > 0 ? ` [ws=${c.workstations.length}]` : '';
+                    const phTag = isPh ? '  📌佔位' : '';
+                    lines.push(`       - ${(c.caseNo || '(無編號)').padEnd(10)} ${c.clientName || '(無名)'}  ${c.category || ''}${wsTag}${phTag}`);
+                });
+                lines.push('');
+            });
+
+            if (orphans.length > 0) {
+                lines.push('━━━ 沒 company 的孤立 case ━━━');
+                orphans.forEach(c => {
+                    lines.push(`  - ${c.caseNo || '(無編號)'}  ${c.clientName || '(無名)'}  ${c.category || ''}`);
+                });
+                lines.push('');
+            }
+
+            if (ownerInconsistent.length > 0) {
+                lines.push('━━━ owner 不一致的單位 ━━━');
+                ownerInconsistent.forEach(o => lines.push(`  - ${o.norm}：${o.owners.join(' / ')}`));
+                lines.push('');
+            }
+
+            if (rawVariants.length > 0) {
+                lines.push('━━━ company 字串變體（空白/全形差異） ━━━');
+                rawVariants.forEach(([norm, g]) => {
+                    lines.push(`  - 正規化後："${norm}"`);
+                    [...g.raws].forEach(r => lines.push(`      原始："${r}"`));
+                });
+                lines.push('');
+            }
+
+            lines.push('━━━ 結尾 ━━━');
+            lines.push('（本報告純讀取，未動到任何 Firestore 資料）');
+
+            const text = lines.join('\n');
+            const titleEl = document.getElementById('diag-case-title');
+            const bodyEl = document.getElementById('diag-case-body');
+            if (titleEl) titleEl.textContent = `單位結構診斷 — ${groups.size} 單位 / ${total} 案`;
+            if (bodyEl) bodyEl.textContent = text;
+            document.getElementById('diag-case-modal')?.classList.remove('hidden');
+            // 同步印一份到 console（方便 F12 直接抓）
+            console.log('%c=== diagUnit() 報告 ===', 'font-weight:bold;color:#7c3aed');
+            console.log(text);
+        };
+
+        // 🆕 Phase 0：一鍵備份所有 cases 為 JSON 下載
+        // 模式：'lean'（預設，排除 > 10KB 的 base64 字串）/ 'full'（完整含媒體）
+        window.backupCasesJson = function(mode) {
+            mode = mode || 'lean';
+            const all = (casesData || []);
+            if (all.length === 0) { showToast('沒有案件可備份'); return; }
+
+            const LARGE_THRESHOLD = 10 * 1024;   // 10KB
+            const stripLargeBase64 = (obj) => {
+                if (obj == null) return obj;
+                if (typeof obj === 'string') {
+                    if (obj.length > LARGE_THRESHOLD && /^data:|^[A-Za-z0-9+/=]{1000,}$/.test(obj)) {
+                        return `[stripped: ${obj.length} chars, starts with "${obj.slice(0, 40)}..."]`;
+                    }
+                    return obj;
+                }
+                if (Array.isArray(obj)) return obj.map(stripLargeBase64);
+                if (typeof obj === 'object') {
+                    const out = {};
+                    for (const k of Object.keys(obj)) out[k] = stripLargeBase64(obj[k]);
+                    return out;
+                }
+                return obj;
+            };
+
+            const cleaned = mode === 'full' ? all : all.map(stripLargeBase64);
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                exportedBy: currentUser?.email || '(unknown)',
+                mode: mode,
+                count: cleaned.length,
+                note: mode === 'lean'
+                    ? '精簡備份：> 10KB 的 base64 媒體已用 marker 取代'
+                    : '完整備份：含 base64 媒體',
+                cases: cleaned
+            };
+
+            try {
+                const json = JSON.stringify(payload, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cases_backup_${mode}_${ts}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                const sizeMb = (blob.size / 1024 / 1024).toFixed(2);
+                showToast(`✅ 已下載 ${cleaned.length} 筆案件備份（${sizeMb} MB）`);
+                console.log(`[backupCasesJson] mode=${mode}  cases=${cleaned.length}  size=${sizeMb}MB`);
+            } catch (err) {
+                console.error('備份失敗', err);
+                showToast(`❌ 備份失敗：${err.message || err}`);
             }
         };
 
@@ -6398,28 +6234,14 @@
                 const ownerList = [...new Set(people.map(p => getCaseOwner(p)).filter(Boolean))];
                 const districtList = [...new Set(people.map(p => String(p.district || p.referralSource || '').replace(/縣|市/g,'').trim()).filter(Boolean))];
                 const visitDate = formatDateYMD(people[0]?.visitDate || people[0]?.date) || target;
-                // 🆕 中高勞通類別 → 整單位共用一個工作站訪視紀錄入口
-                //    避免凱宇從個案 row 進去填變成個人 case 紀錄、資料錯置
-                const isUnitGroup = people.some(p => p.category === '中高齡（工作站）' || p.category === '中高齡及高齡者' || p.category === '勞工就業通');
-                const unitEntryCaseId = isUnitGroup
-                    ? (people.slice().sort((a, b) => String(a.caseNo||'').localeCompare(String(b.caseNo||''), 'zh-Hant', { numeric: true }))[0]?.id)
-                    : null;
-                const headerCls = isUnitGroup
-                    ? 'bg-blue-50 p-3 flex items-center gap-2 border-b border-blue-100 cursor-pointer hover:bg-blue-100 active:bg-blue-200 transition-colors'
-                    : 'bg-blue-50 p-3 flex items-center gap-2 border-b border-blue-100';
-                const headerOnclick = isUnitGroup ? `onclick="window.openWorkspace('${unitEntryCaseId}')"` : '';
-                const headerExtra = isUnitGroup
-                    ? `<button onclick="event.stopPropagation(); window.openWorkspace('${unitEntryCaseId}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 active:scale-95 ml-1"><i class="fa-solid fa-pen-to-square mr-1"></i>進入紀錄</button>`
-                    : '';
                 html += `<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div class="${headerCls}" ${headerOnclick}>
+                    <div class="bg-blue-50 p-3 flex items-center gap-2 border-b border-blue-100">
                         <i class="fa-solid fa-building text-blue-600 text-xl shrink-0"></i>
                         <div class="min-w-0 flex-1">
                             <p class="font-black text-slate-800 text-base truncate">${unit}</p>
-                            <p class="text-xs text-slate-500 mt-0.5">${categories || '—'} · ${people.length} 人 · 📅 ${visitDate}${isUnitGroup ? '　<span class="text-blue-700 font-bold">點此進工作站訪視</span>' : ''}</p>
+                            <p class="text-xs text-slate-500 mt-0.5">${categories || '—'} · ${people.length} 人 · 📅 ${visitDate}</p>
                         </div>
                         <span class="text-xs bg-white text-blue-700 border border-blue-300 px-2 py-1 rounded font-bold shrink-0">${people.length} 人</span>
-                        ${headerExtra}
                     </div>
                     <div class="divide-y divide-slate-100">
                         ${people.map(c => {
@@ -6427,16 +6249,7 @@
                             const age = String(c.clientAge || '').trim();
                             const meta = [dis, age ? `${age}歲` : ''].filter(Boolean).join(' · ');
                             const exec = getExecStatus(c);
-                            const isElder = c.category === '中高齡（工作站）' || c.category === '中高齡及高齡者' || c.category === '勞工就業通';
-                            // 🆕 中高勞通個案 row 不可點（避免進去當個人紀錄）；身障 row 仍可
-                            const rowCls = isElder
-                                ? 'p-3 flex items-center gap-3'
-                                : 'p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 active:bg-slate-100';
-                            const rowOnclick = isElder ? '' : `onclick="window.openWorkspace('${c.id}')"`;
-                            const recBtn = isElder
-                                ? ''   // 中高勞通：不顯示紀錄按鈕
-                                : `<button class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-2 rounded-lg text-xs font-bold shrink-0 active:scale-95"><i class="fa-solid fa-pen-to-square mr-1"></i>紀錄</button>`;
-                            return `<div class="${rowCls}" ${rowOnclick}>
+                            return `<div class="p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 active:bg-slate-100" onclick="window.openWorkspace('${c.id}')">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-bold text-slate-800 text-base">${c.clientName || '未命名個案'}</span>
@@ -6448,7 +6261,9 @@
                                         ${deadlineBadgeHtml(c)}
                                     </div>
                                 </div>
-                                ${recBtn}
+                                <button class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-2 rounded-lg text-xs font-bold shrink-0 active:scale-95">
+                                    <i class="fa-solid fa-pen-to-square mr-1"></i>紀錄
+                                </button>
                             </div>`;
                         }).join('')}
                     </div>
@@ -6580,18 +6395,11 @@
                         const allDone = people.every(p => isReportCompleted(p));
                         const unitEvalUrl = (people.find(p => p.unitEvalReportFileUrl) || {}).unitEvalReportFileUrl || '';
                         const safe = unitName.replace(/"/g,'&quot;');
-                        // 凱宇 2026-05-06：單位入口 case = caseNo 升序第一個（資料集中在這筆）
-                        const sortedPeople = people.slice().sort((a, b) => String(a.caseNo||'').localeCompare(String(b.caseNo||''), 'zh-Hant', { numeric: true }));
-                        const entryCaseId = sortedPeople[0]?.id || '';
                         const evalPreview = unitEvalUrl
                             ? `<button class="text-[11px] bg-purple-50 text-purple-700 border border-purple-300 px-2 py-1 rounded font-bold hover:bg-purple-100" onclick="event.stopPropagation(); window.openPreview('${unitEvalUrl}','${unitEvalUrl}','application/pdf','評估報告')" title="預覽評估報告"><i class="fa-solid fa-paperclip mr-1"></i>已上傳評估報告</button>`
                             : '';
-                        const enterBtn = entryCaseId
-                            ? `<button type="button" class="text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded font-bold whitespace-nowrap shadow active:scale-95" onclick="event.stopPropagation(); event.preventDefault(); window.openWorkspace('${entryCaseId}');"><i class="fa-solid fa-pen-to-square mr-1"></i>進入紀錄</button>`
-                            : '';
                         const actionBar = `<div class="flex items-center gap-1.5 flex-wrap shrink-0" onclick="event.stopPropagation(); event.preventDefault();">
                             ${allDone ? `<span class="text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-300 px-2 py-1 rounded font-bold">✓ 全部完成</span>` : ''}
-                            ${enterBtn}
                             ${evalPreview}
                             <label class="dash-unit-eval-upload text-[11px] bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded font-bold cursor-pointer whitespace-nowrap" title="上傳單位評估報告（一份套用全員）">
                                 <i class="fa-solid fa-upload mr-1"></i>${unitEvalUrl ? '更換' : '上傳'}評估報告
@@ -6602,29 +6410,15 @@
                                 <i class="fa-solid fa-check mr-1"></i>全部完成報告
                             </button>` : ''}
                         </div>`;
-                        // 凱宇 2026-05-06：中高勞通單位 → 整個 row 點擊也進入紀錄；下方人員列表純展示（拿掉個別 openWorkspace）
-                        const personListReadonly = sortedPeople.map((c, idx) => {
-                            const done = isReportCompleted(c);
-                            return `<div class="bg-white p-2 rounded-lg border border-slate-200 flex items-center gap-2 ml-4">
-                                <input type="checkbox" class="dash-done-chk w-4 h-4 accent-emerald-600" data-case-id="${c.id}" ${done ? 'checked' : ''} title="標記此人報告完成">
-                                <span class="text-xs text-slate-400 shrink-0">${idx + 1}.</span>
-                                <span class="text-sm font-medium text-slate-700 truncate">${c.clientName || '未命名'}</span>
-                                <span class="text-[10px] text-slate-400 shrink-0">${c.caseNo || ''}</span>
-                                ${deadlineBadgeHtml(c)}
-                            </div>`;
-                        }).join('');
                         unitHtml += `<details class="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-                            <summary class="cursor-pointer p-3 hover:bg-amber-100 flex items-center justify-between gap-2 flex-wrap" onclick="(function(e){if(e.target.closest('button,label,input,a'))return; if(e.target.tagName==='SUMMARY' || e.target.closest('summary')){/* let details toggle */}})(event)">
+                            <summary class="cursor-pointer p-3 hover:bg-amber-100 flex items-center justify-between gap-2 flex-wrap">
                                 <div class="min-w-0 flex-1">
                                     <p class="font-bold text-slate-800 truncate"><i class="fa-solid fa-building text-amber-500 mr-2"></i>${unitName}</p>
                                     <p class="text-xs text-slate-500 mt-0.5">${categories} · ${people.length} 人</p>
                                 </div>
                                 ${actionBar}
                             </summary>
-                            <div class="p-3 pt-0 space-y-1.5">
-                                <p class="text-[11px] text-slate-500 italic mb-1">點上方「進入紀錄」進工作區（整單位共用工作站，個案資料集中在主案 ${sortedPeople[0]?.caseNo || ''}）</p>
-                                ${personListReadonly}
-                            </div>
+                            <div class="p-3 pt-0 space-y-2">${people.map(makePersonRow).join('')}</div>
                         </details>`;
                     }
                     html += `<details id="dash-sec-unit" ${openUnit ? 'open' : ''} class="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden mt-3">
@@ -7361,7 +7155,26 @@
                 sec.dataset.clearReady = '1';
             });
 
-            // 凱宇 2026-05-06：移除中高齡工作站區塊的「清除」按鈕（容易跟「刪除」混淆，且實用性低）
+            const elderCards = Array.from(document.querySelectorAll('#elder-ws-detail > div'));
+            elderCards.forEach(card => {
+                if (!card || card.dataset.clearReady === '1') return;
+                if (getSectionClearableFields(card).length === 0) return;
+                card.classList.add('relative');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'absolute top-4 right-4 z-10 text-xs text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 rounded-lg font-bold';
+                btn.innerHTML = '<i class="fa-solid fa-eraser mr-1"></i>清除';
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!confirm('要清除此區塊內容並回到預設嗎？')) return;
+                    resetFieldsInContainer(card);
+                    triggerSaveAfterSectionClear();
+                    showToast('此區塊已清除');
+                });
+                card.appendChild(btn);
+                card.dataset.clearReady = '1';
+            });
         }
 
         function setDisAudioBusy(isBusy) {
@@ -8044,9 +7857,6 @@
                 age: x.clientAge || '',
                 caseNo: x.caseNo || '',
                 disability: x.clientDisability || '',
-                title: x.clientTitle || x.jobTitle || '',       // 🆕 凱宇 2026-05-06：補職稱
-                department: x.departmentType || '',             // 🆕 部門
-                seniority: x.seniority || x.monthsInPosition || '',
             }));
         }
 
@@ -8059,17 +7869,8 @@
             document.getElementById('elder-ws-company').textContent = c.company || '未命名企業';
             // 訪視專員 = owner（資料上 owner = 接案/訪視人員 = 凱宇本人）；inspector 是承辦（顏雅玲等同事），不放這
             document.getElementById('elder-ws-meta').textContent = `初訪日：${formatDateYMD(c.visitDate) || '-'}　訪視專員：${getCaseOwner(c) || '蔡凱宇'}`;
-            // 申請書迴紋針（凱宇 2026-05-06：自動借閱 — 當前 case 沒檔則從同單位其他 case 借）
-            let _appUrl = c.applicationFileUrl || '';
-            if (!_appUrl && c.company) {
-                const sameCo = (casesData || []).find(x =>
-                    x.id !== c.id &&
-                    String(x.company || '').trim() === String(c.company).trim() &&
-                    x.applicationFileUrl
-                );
-                if (sameCo) _appUrl = sameCo.applicationFileUrl;
-            }
-            updateAppFileBtn('elder', caseId, _appUrl);
+            // 申請書迴紋針
+            updateAppFileBtn('elder', caseId, c.applicationFileUrl || '');
             const elderAddressEl = document.getElementById('elder-company-address');
             const elderAddress = String(c.companyAddress || getDistrictByName(c.district || '')?.address || '').trim();
             if (elderAddressEl) elderAddressEl.textContent = elderAddress || '未填寫地址';
@@ -8080,38 +7881,17 @@
             if (elderBadge) elderBadge.textContent = c.category || '中高齡';
 
             // 🆕 自動把同單位個案帶入 personnel — 取代手動匯入 Excel 流程
-            // 每次開啟都用最新 casesData 重算 + merge（凱宇 2026-05-06：保留 AI/手動填的補充欄位）
-            // 邏輯：_auto 為基礎結構（最新姓名/編號/職稱）；_existing 內的 workDesc/difficulties/expectedItems 等補充欄位**保留不覆蓋**
+            // 每次開啟都用最新 casesData 重算覆蓋（避免新增/改 company 的個案漏掉）
+            // 跟現有不一致才寫回 Firestore（避免每次開啟都 write）
             const _auto = _elderAutoPersonnel(c);
             if (_auto.length > 0) {
                 const _existing = c.companyPersonnel || [];
-                const _existByName = new Map(_existing.map(p => [String(p.name || '').trim(), p]));
-                const _merged = _auto.map(autoP => {
-                    const old = _existByName.get(String(autoP.name || '').trim());
-                    if (!old) return autoP;
-                    return {
-                        ...autoP,
-                        // 補充欄位：既有有值優先（AI 寫的、凱宇手動填的都不被覆蓋）
-                        workDesc: old.workDesc || autoP.workDesc || '',
-                        difficulties: old.difficulties || autoP.difficulties || '',
-                        expectedItems: old.expectedItems || autoP.expectedItems || '',
-                        seniority: old.seniority || autoP.seniority || '',
-                        // 沿用既有 id（保留 AI/手動建的 id 不被 caseId 覆蓋，免得 ws.personnelIds 對不上）
-                        id: old.id || autoP.id,
-                    };
-                });
-                // 既有 _existing 內 _auto 沒包到的（AI 加的人不在同單位 case 裡）→ 也保留
-                const _autoNames = new Set(_auto.map(p => String(p.name || '').trim()));
-                const _extra = _existing.filter(p => !_autoNames.has(String(p.name || '').trim()));
-                const _final = [..._merged, ..._extra];
-                // 比對：完整 deep compare 太重，用 length + 每筆 name+workDesc+difficulties 比對
-                const _existKey = (p) => `${p?.name||''}|${p?.title||''}|${p?.workDesc||''}|${p?.difficulties||''}|${p?.expectedItems||''}`;
-                const _same = _existing.length === _final.length
-                    && _existing.every((p, i) => _existKey(p) === _existKey(_final[i]));
-                c.companyPersonnel = _final;
+                const _same = _existing.length === _auto.length
+                    && _existing.every((p, i) => p && _auto[i] && p.id === _auto[i].id);
+                c.companyPersonnel = _auto;
                 if (!_same && currentUser) {
                     updateDoc(doc(db, 'users', currentUser.uid, 'cases', c.id), {
-                        companyPersonnel: _final,
+                        companyPersonnel: _auto,
                         updatedAt: serverTimestamp()
                     }).catch(err => console.warn('auto-save companyPersonnel 失敗', err));
                 }
@@ -8295,7 +8075,7 @@
         document.addEventListener('input', (e) => {
             const t = e.target;
             if (!(t instanceof Element)) return;
-            if (t.matches('#elder-ws-name, #elder-work-content, #elder-difficulties, #elder-improvements, #elder-env-lux, #elder-env-noise, #elder-env-desk-height, #elder-env-work-height, #elder-env-distance, #elder-env-weight, #elder-ws-work-process, #elder-ws-site-notes')) {
+            if (t.matches('#elder-ws-name, #elder-work-content, #elder-difficulties, #elder-improvements, #elder-env-lux, #elder-env-noise, #elder-env-desk-height, #elder-env-work-height, #elder-env-distance, #elder-env-weight, #elder-ws-work-process')) {
                 scheduleElderWorkstationAutoSave();
             }
             // 品項欄位不觸發自動儲存（會導致輸入中的文字跳掉），改由工作站儲存按鈕統一收集
@@ -11165,14 +10945,6 @@ ${rawDraft}
                 : '尚未勾選納編人員';
         }
 
-        // 凱宇 2026-05-06：把 Excel「部門 公1私2」碼翻譯成中文（1=公、2=私）
-        const _formatDeptType = (d) => {
-            const s = String(d || '').trim();
-            if (s === '1') return '公部門';
-            if (s === '2') return '私部門';
-            return s;
-        };
-
         renderElderCompanyPersonnel = function(companyPersonnel, workstations) {
             const container = document.getElementById('elder-company-personnel-list');
             if (!container) return;
@@ -11187,15 +10959,13 @@ ${rawDraft}
                     assignMap[pid].push(ws.name || '未命名工作站');
                 });
             });
-            container.innerHTML = companyPersonnel.map((person, idx) => {
+            container.innerHTML = companyPersonnel.map(person => {
                 const assigned = assignMap[person.id] || [];
                 const tone = assigned.length ? 'border-slate-200 bg-slate-50 text-slate-700' : 'border-orange-200 bg-orange-50 text-orange-700';
-                // 凱宇 2026-05-06：左欄人員清單格式 = N. 姓名 性別 X歲
-                const nameLine = [person.name || '未命名', person.gender || '', person.age ? `${person.age}歲` : ''].filter(Boolean).join(' ');
                 return `
                     <div class="px-2.5 py-2 rounded-xl border ${tone}">
-                        <p class="text-xs font-bold truncate"><span class="text-slate-400 mr-1">${idx + 1}.</span>${nameLine}</p>
-                        <p class="text-[11px] text-slate-400 truncate">${person.title || '未填職稱'}</p>
+                        <p class="text-xs font-bold truncate">${elderPersonLabel(person, true)}</p>
+                        <p class="text-[11px] text-slate-400 truncate">${[person.department, person.title].filter(Boolean).join(' / ') || '未填部門與職稱'}</p>
                         <p class="text-[11px] text-slate-400 truncate">${assigned.length ? assigned.join('、') : '未納編到工作站'}</p>
                     </div>
                 `;
@@ -11216,19 +10986,16 @@ ${rawDraft}
             const hide = document.getElementById('elder-hide-personnel-details')?.checked;
             container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-2">${companyPersonnel.map(person => {
                 const isChecked = checked.has(person.id);
-                // 凱宇 2026-05-06：年齡放性別旁邊一起顯示；職稱+部門/工作區也合併到同一行（不要放下一段）
-                const seq = toCleanText(person.seqNo || person.seq);
-                const namePart = `${seq ? seq + ' ' : ''}${person.name || '未命名'}`;
-                const genderAge = [person.gender, person.age ? `${person.age}歲` : ''].filter(Boolean).join(' ');
-                const titleDept = person.title || '';
+                const details = [person.department, person.title, person.age ? `${person.age}歲` : ''].filter(Boolean).join(' / ');
                 return `
                     <label class="flex items-start gap-3 px-3 py-3 rounded-xl border-2 cursor-pointer transition-colors ${isChecked ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white hover:border-amber-200'}">
                         <input type="checkbox" class="elder-personnel-chk mt-1 w-4 h-4 accent-amber-600 shrink-0" data-pid="${person.id}" ${isChecked ? 'checked' : ''}>
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm font-bold text-slate-800 truncate">
-                                ${namePart}${genderAge ? ` <span class="text-xs font-normal text-slate-500">${genderAge}</span>` : ''}${titleDept ? ` <span class="text-xs font-normal text-slate-500">- ${titleDept}</span>` : ''}
-                            </p>
-                            ${hide ? '' : `<p class="text-xs text-slate-400 truncate">${toCleanText(person.workDesc) || ''}</p>`}
+                            <p class="text-sm font-bold text-slate-800 truncate">${elderPersonLabel(person, true)}</p>
+                            <div class="${hide ? 'hidden' : ''}">
+                                <p class="text-xs text-slate-500 truncate">${details || '未填部門、職稱與年齡'}</p>
+                                <p class="text-xs text-slate-400 truncate">${toCleanText(person.workDesc) || '未填工作內容'}</p>
+                            </div>
                         </div>
                     </label>
                 `;
@@ -11322,9 +11089,6 @@ ${rawDraft}
                     ...ws,
                     name: document.getElementById('elder-ws-name-v2')?.value.trim() || ws.name,
                     workProcess: document.getElementById('elder-ws-work-process')?.value || ws.workProcess || '',
-                    siteNotes: document.getElementById('elder-ws-site-notes')?.value || ws.siteNotes || '',
-                    equipment: ws.equipment || '',
-                    vendorRequest: ws.vendorRequest || '',
                     personnelIds: Array.from(document.querySelectorAll('.elder-personnel-chk:checked')).map(cb => cb.dataset.pid),
                     requestedItems: (() => { const domItems = collectElderItems(); return document.getElementById('elder-items-list')?.children.length ? domItems : (ws.requestedItems || []); })(),
                     env: {
@@ -11384,9 +11148,6 @@ ${rawDraft}
             // 🆕 工作內容及流程
             const wpEl = document.getElementById('elder-ws-work-process');
             if (wpEl) wpEl.value = ws.workProcess || '';
-            // 🆕 凱宇 2026-05-06：現場備註 / 客觀數據待測
-            const snEl = document.getElementById('elder-ws-site-notes');
-            if (snEl) snEl.value = ws.siteNotes || '';
             // 🆕 若已有納編人員，預設收合人員清單
             const hidePersonnelChk = document.getElementById('elder-hide-personnel-details');
             if (hidePersonnelChk && (ws.personnelIds || []).length > 0) hidePersonnelChk.checked = true;
@@ -11661,58 +11422,17 @@ ${rawDraft}
             add('中高齡／勞工就業通工作站紀錄');
             add('========================================');
             addKV('公司', c.company);
-            addKV('訪視日期', formatDateYMD(c.visitDate) || c.visitDate);
-            addKV('地址', c.companyAddress || c.address);
+            addKV('訪視日期', c.visitDate);
             addKV('轄區', c.district);
             addKV('訪視專員', c.owner);
             addKV('協訪專員', Array.isArray(c.coInspectors) ? c.coInspectors.join('、') : '');
             addKV('轄區承辦', c.inspector);
             addKV('訪視委員', c.visitors);
 
-            // 凱宇 2026-05-06：補入新欄位 workProcess / equipment / requestedItems / siteNotes / vendorRequest，移除 record.department 公私碼
             (c.workstations || []).forEach((ws, idx) => {
                 add('');
-                add('----------------------------------------');
                 add(`工作站 ${idx + 1}：${toCleanText(ws.name) || '未命名工作站'}`);
-                add(`納編人員：${(ws.personnelIds || []).map((pid, pIdx) => {
-                    const p = getCompanyPersonnelById(c.companyPersonnel || [], pid);
-                    if (!p) return '';
-                    return `${pIdx+1}.${p.name||''}${p.gender?' '+p.gender:''}${p.age?' '+p.age+'歲':''}${p.title?' '+p.title:''}`;
-                }).filter(Boolean).join('、') || '無'}`);
-
-                add('');
-                add('▍1. 工作內容及流程');
-                add(toCleanText(ws.workProcess) || '（未填寫）');
-
-                if (ws.equipment) {
-                    add('');
-                    add('▍2. 現有設備');
-                    add(toCleanText(ws.equipment));
-                }
-
-                add('');
-                add('▍3. 申請品項及數量');
-                if (!(ws.requestedItems || []).length) {
-                    add('（未填寫）');
-                } else {
-                    (ws.requestedItems || []).forEach((it, iIdx) => {
-                        const sharedTag = it.isShared ? '共用' : '指定';
-                        // 凱宇 2026-05-06：共用品項 → 自動套用工作站全員（不限 AI 填的 members）
-                        const userIds = it.isShared ? (ws.personnelIds || []) : (it.personnelIds || []);
-                        const userNames = userIds.map(pid => {
-                            const p = getCompanyPersonnelById(c.companyPersonnel || [], pid);
-                            return p?.name || '';
-                        }).filter(Boolean).join('、');
-                        add(`  ${iIdx + 1}. ${toCleanText(it.text) || '?'} × ${it.qty || '?'}（${sharedTag}${userNames ? '：' + userNames : ''}）`);
-                    });
-                }
-
-                if (ws.vendorRequest) {
-                    add('');
-                    add('▍4. 廠商需求');
-                    add(toCleanText(ws.vendorRequest));
-                }
-
+                add(`納編人員：${(ws.personnelIds || []).map(pid => elderPersonLabel(getCompanyPersonnelById(c.companyPersonnel || [], pid), true)).join('、') || '無'}`);
                 const env = ws.env || {};
                 const envSummary = [
                     env.lux ? `照度 ${env.lux} Lux` : '',
@@ -11722,38 +11442,18 @@ ${rawDraft}
                     env.distance ? `移動距離 ${env.distance} m` : '',
                     env.weight ? `搬運重量 ${env.weight} kg` : ''
                 ].filter(Boolean).join('、');
-                if (envSummary) {
-                    add('');
-                    add('▍5. 環境量測');
-                    add(envSummary);
-                }
-
-                if (ws.siteNotes) {
-                    add('');
-                    add('▍6. 現場備註 / 客觀數據');
-                    add(toCleanText(ws.siteNotes));
-                }
-
-                add('');
-                add('▍7. 個案基本資料');
-                // 凱宇 2026-05-06：永遠用 ws.personnelIds 展開全員（personnel 為主），records 對應同人時 merge 補充
-                const peopleIds = ws.personnelIds || [];
-                if (peopleIds.length === 0) {
+                add(`環境量測：${envSummary || '未填寫'}`);
+                add('個案紀錄：');
+                if (!(ws.records || []).length) {
                     add('  無');
                 } else {
-                    peopleIds.forEach((pid, pIdx) => {
-                        const p = getCompanyPersonnelById(c.companyPersonnel || [], pid);
-                        if (!p) return;
-                        const r = (ws.records || []).find(x => x.name === p.name) || {};
-                        // 訪視 record 有寫優先；fallback personnel 欄位
-                        const wc = (toCleanText(r.workContent) || toCleanText(p.workDesc) || '（待補）').replace(/\n+/g, ' ');
-                        const df = (toCleanText(r.difficulties) || toCleanText(p.difficulties) || '（待補）').replace(/\n+/g, ' ');
-                        // 凱宇 2026-05-06：申請項目不寫進個案基本資料（已在「3. 申請品項及數量」段落顯示，避免重複）
-                        const photos = (r.photos || []).map(photo => photo.name || photo.displayName).filter(Boolean);
-                        add(`  ${pIdx + 1}. ${p.name || '未命名'}${p.gender?' '+p.gender:''}${p.age?' '+p.age+'歲':''} / ${toCleanText(p.title) || '未填職稱'}`);
-                        add(`     工作內容：${wc}`);
-                        add(`     工作困擾：${df}`);
-                        if (photos.length) add(`     照片：${photos.join('、')}`);
+                    (ws.records || []).forEach((record, rIdx) => {
+                        add(`  ${rIdx + 1}. ${toCleanText(record.name) || '未命名'} / ${toCleanText(record.seqNo) || '-'} / ${toCleanText(record.department) || '未填部門'} / ${toCleanText(record.title) || '未填職稱'}`);
+                        add(`     年齡：${toCleanText(record.age) || '未填寫'}`);
+                        add(`     工作內容：${toCleanText(record.workContent) || '未填寫'}`);
+                        add(`     工作困擾：${toCleanText(record.difficulties) || '未填寫'}`);
+                        add(`     申請項目：${toCleanText(record.expectedItems) || '未填寫'}`);
+                        add(`     照片：${(record.photos || []).map(photo => photo.name || photo.displayName).join('、') || '無'}`);
                     });
                 }
             });
@@ -11875,7 +11575,7 @@ ${rawDraft}
                 container.innerHTML = '<p class="text-sm text-slate-400 text-center py-3">請先勾選納編人員後儲存工作站，即可展開個別記錄區</p>';
                 return;
             }
-            container.innerHTML = people.map((person, idx) => {
+            container.innerHTML = people.map(person => {
                 const record = getElderRecordForPersonnel(ws, person);
                 const cancelled = isPersonCancelled(record);
                 const photoCount = (record.photos || []).length;
@@ -11883,10 +11583,8 @@ ${rawDraft}
                     `<img src="${p.previewUrl || p.downloadUrl}" class="w-12 h-12 object-cover rounded-lg border border-slate-200 cursor-pointer shrink-0" onclick="window.openPreview('${p.downloadUrl||p.previewUrl}','${p.displayName||p.name}','image')">`
                 ).join('');
                 const notesVal = [record.workContent, record.difficulties ? '【困擾障礙】\n' + record.difficulties : ''].filter(Boolean).join('\n\n');
-                // 凱宇 2026-05-06：順序直接用 people array 的 idx+1（people 已按 ws.personnelIds 順序展開）
-                const seq = String(idx + 1);
-                // 凱宇 2026-05-06：移除 department（公私碼 1/2 沒意義）
-                const details = [person.gender || '', person.age ? `${person.age}歲` : '', person.title || ''].filter(Boolean);
+                const seq = toCleanText(person.seqNo || person.seq || record.seqNo || '-');
+                const details = [person.gender ? `${person.gender}` : '', person.age ? `${person.age}歲` : '', person.title || '', person.department || ''].filter(Boolean);
                 const statusOpts = PERSON_STATUS_OPTIONS.map(o =>
                     `<option value="${o.value}" ${record.status === o.value ? 'selected' : ''}>${o.label}</option>`
                 ).join('');
@@ -14332,16 +14030,6 @@ ${rawDraft}
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         }
 
-        // 凱宇 2026-05-06：身障個人申請隱姓名 → 姓+OO（複姓常見 12 個列入考量）
-        const _TWO_CHAR_SURNAMES = ['歐陽','司馬','上官','皇甫','諸葛','東方','獨孤','南宮','慕容','尉遲','長孫','宇文'];
-        const _maskClientName = (name) => {
-            const s = String(name || '').trim();
-            if (!s) return '未命名';
-            const prefix2 = s.slice(0, 2);
-            if (_TWO_CHAR_SURNAMES.includes(prefix2)) return prefix2 + 'OO';
-            return s[0] + 'OO';
-        };
-
         // --- 資料抓取：依日期與模式建立單位群組 ---
         function _tripBuildGroups(dateStr, mode) {
             // 傳回: [{ unitName, address, members: [{name, category}], categoryType, cityDistrict, time }]
@@ -14359,12 +14047,8 @@ ${rawDraft}
                     if (!groups.has(key)) {
                         const addr = c.address || raw?.companyAddress || '';
                         const time = (sched.entries?.[schedKeyForCase(c)] || {}).visitTime || '';
-                        // 凱宇 2026-05-06：身障一律用「個人申請(姓OO)」（不論 c.unit 有沒）
-                        const unitName = (c.category === '身障')
-                            ? `個人申請(${_maskClientName(c.clientName)})`
-                            : (c.unit || '');
                         groups.set(key, {
-                            unitName,
+                            unitName: (c.category === '身障') ? (c.unit || c.clientName || '') : (c.unit || ''),
                             address: addr,
                             members: [],
                             categoryType: _tripCategoryType(cat),
@@ -14382,21 +14066,14 @@ ${rawDraft}
                 const visitCases = (casesData || []).filter(c =>
                     isPrimaryCase(c) && formatDateYMD(c.visitDate || c.date) === dateStr
                 );
-                // 凱宇 2026-05-06：raw case 身障判斷用 regex（c.category 可能是「身心障礙者」「單側聽損」非「身障」）
-                const _isDisRaw = (c) => /身心障礙|單側/.test(String(c.category || ''));
                 for (const c of visitCases) {
                     const addr = c.address || c.companyAddress || c.workLocation || '';
                     if (addr && verifyAddrs.has(addr.trim())) continue;  // 同地址已有 verify，跳過避免重複
                     const key = isUnit(c) ? `unit_${(c.company || '').trim() || c.id}` : `dis_${c.id}`;
                     if (!groups.has(key)) {
-                        // 🐛 Bug fix：之前用 `visit_${c.id}` 永遠對不到 → 永遠半日
-                        // 應該對齊 schedKeyForCase 邏輯：身障 dis_<id>、中高 elder_<year>_SEP_<caseNo>
-                        const sk = _isDisRaw(c) ? `dis_${c.id}`
-                                 : isUnit(c) ? `elder_${c.year || ''}_SEP_${c.caseNo || c.company || ''}`
-                                 : `dis_${c.id}`;
-                        const time = (sched.entries?.[sk] || {}).visitTime || '';
+                        const time = (sched.entries?.[`visit_${c.id}`] || {}).visitTime || '';
                         groups.set(key, {
-                            unitName: isUnit(c) ? (c.company || '') : `個人申請(${_maskClientName(c.clientName)})`,
+                            unitName: isUnit(c) ? (c.company || '') : (c.clientName || ''),
                             address: addr,
                             members: [],
                             categoryType: _tripCategoryType(c.category),
@@ -14416,30 +14093,18 @@ ${rawDraft}
                 );
                 // 中高類依 company 群組；身障依人各一筆
                 const isUnit = (c) => c && (c.category === '中高齡（工作站）' || c.category === '中高齡及高齡者' || c.category === '勞工就業通');
-                // 凱宇 2026-05-06：visit mode 也從 scheduleData 帶 time，否則整日/半日判斷永遠 = 半日
-                const _vSched = (typeof scheduleData !== 'undefined' ? scheduleData[dateStr] : null) || { entries: {} };
-                const _isDis = (c) => /身心障礙|單側/.test(String(c.category || ''));
                 for (const c of visitCases) {
                     const key = isUnit(c)
                         ? `unit_${(c.company || '').trim() || c.id}`
                         : `dis_${c.id}`;
                     if (!groups.has(key)) {
-                        // schedKey：身障 dis_<id>；中高 elder_<year>_SEP_<caseNo|unit>
-                        const sk = _isDis(c) ? `dis_${c.id}`
-                                 : isUnit(c) ? `elder_${c.year || ''}_SEP_${c.caseNo || c.company || ''}`
-                                 : `dis_${c.id}`;
-                        const time = (_vSched.entries?.[sk] || {}).visitTime || '';
-                        // 凱宇 2026-05-06：身障一律「個人申請(姓OO)」
-                        const unitName = isUnit(c)
-                            ? (c.company || '')
-                            : `個人申請(${_maskClientName(c.clientName)})`;
                         groups.set(key, {
-                            unitName,
-                            address: c.companyAddress || c.workLocation || c.address || '',
+                            unitName: c.company || c.clientName || '',
+                            address: c.companyAddress || '',
                             members: [],
                             categoryType: _tripCategoryType(c.category),
-                            cityDistrict: _tripCityDistrict(c.companyAddress || c.workLocation || c.address || ''),
-                            time,
+                            cityDistrict: _tripCityDistrict(c.companyAddress || ''),
+                            time: '',
                             category: c.category || '',
                             inspector: String(c.inspector || '').trim(),
                         });
@@ -14461,8 +14126,7 @@ ${rawDraft}
                     const addr = c.address || c.companyAddress || c.workLocation || '';
                     const time = (sched.entries?.[`visit_${c.id}`] || {}).visitTime || '';
                     groups.set(key, {
-                        // 凱宇 2026-05-06：身障一律「個人申請(姓OO)」
-                        unitName: isUnit(c) ? (c.company || '') : `個人申請(${_maskClientName(c.clientName)})`,
+                        unitName: isUnit(c) ? (c.company || '') : (c.clientName || ''),
                         address: addr,
                         members: [{ name: c.clientName || '', category: c.category || '' }],
                         categoryType: _tripCategoryType(c.category),
@@ -14583,11 +14247,10 @@ ${rawDraft}
                 `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
                 `<w:body>${bodyXml}${sectPr}</w:body></w:document>`;
 
-            // 🐛 凱宇 2026-05-06 debug：印 group 跟 time，看實際抓到什麼
-            console.log('[exportTripScheduleDocx]', { mode, dateStr, groupCount: groups.length, groups: groups.map(g => ({ name: g.unitName, time: g.time, addr: g.address })) });
-            // 🆕 整日/半日判斷（凱宇 2026-05-06 確認最終規則）：
-            //   - 上午有案 + 下午有案（跨 12:00）→ 整日
-            //   - 只上午 / 只下午 / 全空 → 半日
+            // 🆕 整日/半日判斷（凱宇 2026-05-05 修正）：
+            //   - 跨中午（有 < 12:00 也有 >= 12:00）→ 整日
+            //   - 8:00-17:00 範圍橫跨（最早 ≤ 8:00 + 最晚 ≥ 17:00）→ 整日
+            //   - 其餘（全早上 / 全下午 / 全空）→ 半日
             //   - 沒填時間（00:00 或無）的 row 跳過，用其他有時間的判斷
             const _hm = (t) => {
                 const m = String(t || '').match(/^(\d{1,2}):(\d{2})/);
@@ -14600,12 +14263,12 @@ ${rawDraft}
             if (minutes.length > 0) {
                 const hasMorning = minutes.some(m => m < 12 * 60);
                 const hasAfternoon = minutes.some(m => m >= 12 * 60);
-                dayPart = (hasMorning && hasAfternoon) ? '整日' : '半日';
+                const earliest = Math.min(...minutes);
+                const latest = Math.max(...minutes);
+                if (hasMorning && hasAfternoon) dayPart = '整日';
+                else if (earliest <= 8 * 60 && latest >= 17 * 60) dayPart = '整日';
+                else dayPart = '半日';
             }
-            // 🆕 凱宇 2026-05-06：手動 override（自動 / 強制整日 / 強制半日）
-            const dayPartMode = document.getElementById('sched-daypart-mode')?.value || 'auto';
-            if (dayPartMode === 'full') dayPart = '整日';
-            else if (dayPartMode === 'half') dayPart = '半日';
 
             // 檔名（凱宇 2026-05-05 簡化、統一用「訪視行程表」）
             let filename;
@@ -17278,12 +16941,9 @@ ${rawDraft}
 
         // 每筆案件/單位在行程表中的唯一 key
         // 凱宇 2026-05-05：訪視 case 的中高勞通類別 → 用「單位名」合併（一個地點一個 row），不再每人 1 row
-        // 凱宇 2026-05-06：訪視身障 case 用「dis_<原id>」（去 visit_ prefix），讓行程表 view 跟行程規劃 visitTime 共享同 key
         function schedKeyForCase(c) {
-            if (c._isVisit) {
-                const origId = String(c.id || '').replace(/^visit_/, '');
-                if (c._isElder) return 'elder_visit_' + ((c.unit || c.company || '').trim() || origId);
-                return 'dis_' + origId;   // 訪視身障 → 跟成效身障同 key
+            if (c._isVisit && c._isElder) {
+                return 'elder_visit_' + ((c.unit || c.company || '').trim() || c.id);
             }
             if (c.category === '身障') return 'dis_' + c.id;
             return 'elder_' + (c.year || '') + '_SEP_' + (c.caseNo || c.unit || '');
@@ -18270,38 +17930,28 @@ ${rawDraft}
                     try { await loadScheduleFromFirebase(d); } catch(e) {}
                 }
                 // 成效驗收日 = d
-                const verifyHits = cases.filter(c => formatDateYMD(c.verificationDate) === d);
-                // 凱宇 2026-05-06：日期比對改用 formatDateYMD 正規化（避免 Date 物件 / 格式差異 → 比對失敗）
-                //                   沒地址也保留（純身障個案可手動補地址，不要直接排除）
+                const verifyHits = cases.filter(c => c.verificationDate === d);
+                // 訪視日 = d（從 casesData 抓主責、visitDate=d；地址用 companyAddress / workLocation）
                 const visitHits = (casesData || [])
-                    .filter(c => {
-                        if (!isPrimaryCase(c)) return false;
-                        const v1 = formatDateYMD(c.visitDate);
-                        const v2 = formatDateYMD(c.date);
-                        const v3 = formatDateYMD(c.visitDate2);
-                        return v1 === d || v2 === d || v3 === d;
-                    })
+                    .filter(c => isPrimaryCase(c) && (c.visitDate === d || c.date === d))
                     .map(c => ({
                         id: 'visit_' + c.id,
                         clientName: c.clientName || '',
-                        unit: c.company || (c.category && /身心障礙|單側/.test(c.category) ? `個人申請(${c.clientName || '未命名'})` : ''),
+                        unit: c.company || '',
                         category: '訪視',
                         address: c.address || c.companyAddress || c.workLocation || '',
                         verificationDate: d,
                         _isVisit: true,
                     }));
-                // 合併：以「地址」去重（normalized 比對），verifyHits 優先；沒地址的訪視也保留
-                const _normA = (s) => String(s || '').replace(/[\s　]+/g, '').trim();
-                const verifyAddrSet = new Set(verifyHits.map(c => _normA(c.address)).filter(Boolean));
-                const seenVisitAddr = new Set();
+                // 合併：以「地址」去重，verifyHits 優先
+                const addrSet = new Set(verifyHits.map(c => (c.address || '').trim()).filter(Boolean));
                 const visitDedup = visitHits.filter(c => {
-                    const a = _normA(c.address);
-                    if (a && verifyAddrSet.has(a)) return false;          // 同地址已有 verify → 跳過
-                    if (a && seenVisitAddr.has(a)) return false;          // 訪視內部去重
-                    if (a) seenVisitAddr.add(a);
-                    return true;                                           // 沒地址也保留（讓凱宇看到、可改地址）
+                    const a = (c.address || '').trim();
+                    if (!a) return false;
+                    if (addrSet.has(a)) return false;
+                    addrSet.add(a);
+                    return true;
                 });
-                console.log(`[routeLoadPoints date=${d}] verifyHits=${verifyHits.length} visitHits=${visitHits.length} visitDedup=${visitDedup.length}`);
                 cases = [...verifyHits, ...visitDedup];
             } else if (source === 'filtered') {
                 // 跟驗收清單同邏輯
@@ -18438,7 +18088,7 @@ ${rawDraft}
             const showTime = !!_routeCurrentDate;
             div.innerHTML = _routeWaypoints.map((w, idx) => {
                 const timeInput = showTime
-                    ? `<input type="time" value="${w.visitTime || ''}" onchange="window.routeSaveWpTime(${idx}, this.value)" onclick="event.stopPropagation()" class="text-sm border border-slate-200 rounded px-1.5 py-1 bg-white shrink-0" style="min-width:8.5rem;width:9rem" title="此時間會同步到行程表">`
+                    ? `<input type="time" value="${w.visitTime || ''}" onchange="window.routeSaveWpTime(${idx}, this.value)" onclick="event.stopPropagation()" class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white shrink-0" style="width:5.5rem" title="此時間會同步到行程表">`
                     : '';
                 const apptIcons = w.fromVerify
                     ? `<button onclick="window.vCopyAppointmentMsgFor('${w.key}')" title="複製預約訊息（給 LINE）" class="text-emerald-500 hover:text-emerald-700 px-1"><i class="fa-solid fa-comment-dots text-xs"></i></button>
@@ -19937,39 +19587,6 @@ ${rawDraft}
                 更換 QR 名片圖片
                 <input type="file" id="qr-upload" accept="image/*" class="hidden">
             </label>
-        </div>
-    </div>
-
-    <!-- 🆕 AI 辨識訪視前資料 modal（凱宇 2026-05-06：取代 Excel 直接匯入） -->
-    <div id="ai-intake-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onclick="if(event.target===this) document.getElementById('ai-intake-modal').classList.add('hidden')">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
-            <div class="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
-                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-wand-magic-sparkles text-purple-500 mr-1"></i>AI 辨識訪視前資料</h3>
-                <button onclick="document.getElementById('ai-intake-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-4 border-b border-slate-200 shrink-0">
-                <p class="text-xs text-slate-600 mb-2">廠商提供的訪視前資料（人員清單 + 工作區設備需求）。<b>支援格式</b>：Excel (.xlsx/.xls)、PDF、JPG/PNG</p>
-                <p class="text-xs text-slate-500 mb-3">全部走 Gemini AI 辨識（Excel 先 forward-fill 合併儲存格再丟 AI、彈性處理各種廠商版型）</p>
-                <input type="file" id="ai-intake-file" accept=".xlsx,.xls,.pdf,image/*" class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200">
-                <div id="ai-intake-status" class="text-xs text-slate-500 mt-2 hidden"></div>
-            </div>
-            <div id="ai-intake-preview" class="flex-1 overflow-y-auto p-4 hidden">
-                <div class="mb-3">
-                    <p class="text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-users text-emerald-500 mr-1"></i>解析到的人員 (<span id="ai-intake-personnel-count">0</span>)</p>
-                    <p class="text-[11px] text-slate-500 mb-2">勾選要寫入的人員。<b>已存在的姓名會 merge 補充欄位、不覆蓋既有資料</b>。</p>
-                    <div id="ai-intake-personnel-list" class="space-y-1.5 max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2"></div>
-                </div>
-                <div>
-                    <p class="text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-layer-group text-blue-500 mr-1"></i>解析到的工作站 (<span id="ai-intake-ws-count">0</span>)</p>
-                    <p class="text-[11px] text-slate-500 mb-2">勾選要建立的工作站。<b>同名工作站會合併人員 / 不重建</b>。</p>
-                    <div id="ai-intake-ws-list" class="space-y-1.5 max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2"></div>
-                </div>
-            </div>
-            <div class="p-3 border-t border-slate-200 shrink-0 flex gap-2 justify-end flex-wrap">
-                <button onclick="window.aiIntakeCopyRaw()" class="text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded" title="複製 AI 原始 JSON 輸出（給開發者 debug）">📋 複製 AI 原始 JSON</button>
-                <button onclick="document.getElementById('ai-intake-modal').classList.add('hidden')" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded">取消</button>
-                <button id="ai-intake-confirm-btn" onclick="window.aiIntakeConfirm()" class="text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded shadow active:scale-95 hidden"><i class="fa-solid fa-check mr-1"></i>確認寫入</button>
-            </div>
         </div>
     </div>
 
