@@ -207,6 +207,10 @@
                         <button type="button" onclick="window.cleanupOrphansDryRun()" class="text-xs font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 px-3 py-1.5 rounded-lg" title="揪出歷史殘留的 EC orphan / 數字 caseNo / UH orphan / 「（工作站案件）」佔位等垃圾 case。先彈出預覽，確認後才能執行刪除。">
                             <i class="fa-solid fa-broom mr-1"></i>清理孤立 case
                         </button>
+                        <!-- 🆕 Phase 1：建立 units collection（先 dry-run 預覽、確認後才執行） -->
+                        <button type="button" onclick="window.migrateToUnitsDryRun()" class="text-xs font-bold bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border border-indigo-300 px-3 py-1.5 rounded-lg" title="Phase 1：把現有 cases 按 company 分組，建立 units collection，並把 unitId 寫回 case。Idempotent，可重跑。先彈出預覽。">
+                            <i class="fa-solid fa-building mr-1"></i>建立 units (Phase 1)
+                        </button>
                     </div>
                 </div>
                 <div class="flex items-center justify-between bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap gap-2">
@@ -3849,6 +3853,325 @@
                 console.error('備份失敗', err);
                 showToast(`❌ 備份失敗：${err.message || err}`);
             }
+        };
+
+        // ============================================================
+        // 🆕 Phase 1：units collection 資料模型 + migration 工具
+        //
+        // 設計原則：
+        // 1. unit document 結構：users/{uid}/units/{auto-id}
+        // 2. unit 欄位＝跟雇主/單位/轄區承辦相關的（見 UNIT_FIELDS）
+        // 3. case 欄位＝跟個案/接案/訪視過程相關的（owner、clientName、visitDate 等）
+        // 4. case 加上 unitId 外鍵指回 unit
+        // 5. 為了向後相容，**migration 不刪除 case 上的 unit-level 欄位**（Phase 3 才清）
+        // 6. Idempotency：可重跑，已有 unitId 的 case 會被略過、normalizedName 已存在的 unit 會被重用
+        // 7. 黑名單：UNIT_BLACKLIST 內的 company 名（如「自營作業者」）每筆 case 獨立 unit
+        // ============================================================
+
+        // 黑名單：這些 company 名是「描述性 placeholder」而非真實雇主，每筆 case 獨立 unit
+        const UNIT_BLACKLIST = ['自營作業者'];
+
+        // unit document 的欄位（從 case 抽取的資料）
+        const UNIT_FIELDS = [
+            'company',
+            // 'normalizedName' 由 _normalizeUnitName 計算後寫入，不從 case 取
+            'companyAddress',
+            'district',
+            'industryCategory',
+            'contactName', 'phone', 'contactName2', 'phone2', 'contactEmail',
+            'referralSource',
+            'inspector',           // 轄區承辦（user 確認：綁單位）
+            // 中高齡單位共用資源
+            'workstations',
+            'companyPersonnel',
+            'sharedEquipment',
+            'equipmentAssignments',
+        ];
+
+        // 正規化 company 名：trim、全形空白→半形、合併空白
+        function _normalizeUnitName(s) {
+            return String(s || '').trim().replace(/　/g, ' ').replace(/\s+/g, ' ');
+        }
+
+        // 從一群 cases 抽取「最佳」unit-level 欄位值
+        // 規則：依 caseNo 升序，取第一個非空值
+        function _pickUnitFields(cases) {
+            const isEmpty = (v) => v === null || v === undefined
+                || (Array.isArray(v) ? v.length === 0 : String(v).trim() === '');
+            const sorted = cases.slice().sort((a, b) => {
+                const na = String(a.caseNo || 'zzz'), nb = String(b.caseNo || 'zzz');
+                return na.localeCompare(nb, 'zh-Hant', { numeric: true });
+            });
+            const out = {};
+            for (const f of UNIT_FIELDS) {
+                for (const c of sorted) {
+                    if (!isEmpty(c[f])) { out[f] = c[f]; break; }
+                }
+            }
+            return out;
+        }
+
+        // 規劃 migration（讀取現有 casesData，回傳計畫，不寫入）
+        // 回傳：{ plans: [{ type, normalizedName, cases, unitFields }], orphans }
+        function _planUnitMigration() {
+            const all = (casesData || []);
+            const groups = new Map();
+            const orphans = [];   // 沒 company 的 case
+
+            for (const c of all) {
+                const norm = _normalizeUnitName(c.company);
+                if (!norm) { orphans.push(c); continue; }
+                if (!groups.has(norm)) groups.set(norm, []);
+                groups.get(norm).push(c);
+            }
+
+            const plans = [];
+            for (const [norm, cases] of groups) {
+                const blacklisted = UNIT_BLACKLIST.includes(norm);
+                if (blacklisted) {
+                    // 黑名單：每筆 case 各自獨立 unit
+                    for (const c of cases) {
+                        plans.push({
+                            type: 'isolated',
+                            normalizedName: norm,
+                            cases: [c],
+                            unitFields: _pickUnitFields([c]),
+                        });
+                    }
+                } else if (cases.length === 1) {
+                    plans.push({
+                        type: 'single',
+                        normalizedName: norm,
+                        cases,
+                        unitFields: _pickUnitFields(cases),
+                    });
+                } else {
+                    plans.push({
+                        type: 'shared',
+                        normalizedName: norm,
+                        cases,
+                        unitFields: _pickUnitFields(cases),
+                    });
+                }
+            }
+
+            // 排序：shared 在前（影響較多 case）、依 case 數 DESC
+            plans.sort((a, b) => {
+                if (a.type !== b.type) {
+                    const ord = { shared: 0, isolated: 1, single: 2 };
+                    return ord[a.type] - ord[b.type];
+                }
+                return b.cases.length - a.cases.length;
+            });
+
+            return { plans, orphans };
+        }
+
+        // 載入既有 units（idempotency 用：避免重建已存在的 unit）
+        async function _loadExistingUnits() {
+            if (!currentUser) return [];
+            try {
+                const snap = await getDocs(collection(db, 'users', currentUser.uid, 'units'));
+                return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (err) {
+                console.warn('載入既有 units 失敗（可能 collection 尚不存在，正常）', err);
+                return [];
+            }
+        }
+
+        // Dry-run：顯示 migration 計畫
+        window.migrateToUnitsDryRun = async function() {
+            if (!currentUser) { showToast('❌ 未登入'); return; }
+            const { plans, orphans } = _planUnitMigration();
+            const existingUnits = await _loadExistingUnits();
+            const existingByName = new Map(existingUnits.map(u => [u.normalizedName || _normalizeUnitName(u.company), u]));
+            const alreadyMigrated = (casesData || []).filter(c => c.unitId).length;
+
+            const lines = [];
+            lines.push('=== Phase 1: units migration 預覽（Dry-Run，未寫入） ===');
+            lines.push(`產出時間：${new Date().toLocaleString('zh-TW')}`);
+            lines.push(`登入帳號：${currentUser?.email || '(未登入)'}`);
+            lines.push('');
+            lines.push('━━━ 總覽 ━━━');
+            lines.push(`既有 units（已建立過）：${existingUnits.length}`);
+            lines.push(`已有 unitId 的 case：${alreadyMigrated} / ${(casesData || []).length}`);
+            lines.push(`計畫建立的 unit 數：${plans.length}`);
+            const planByType = { shared: 0, single: 0, isolated: 0 };
+            plans.forEach(p => planByType[p.type]++);
+            lines.push(`  ├ shared（同 company 多筆 case 共用）：${planByType.shared}`);
+            lines.push(`  ├ single（同 company 只有 1 筆）：${planByType.single}`);
+            lines.push(`  └ isolated（黑名單，強制獨立）：${planByType.isolated}`);
+            lines.push(`沒 company 的孤立 case（無法建 unit）：${orphans.length}`);
+            lines.push('');
+
+            const totalCaseUpdates = plans.reduce((s, p) => s + p.cases.length, 0);
+            lines.push(`會寫入 ${plans.length} 筆 unit doc + ${totalCaseUpdates} 筆 case update（含 unitId 外鍵）`);
+            lines.push(`註：本工具有 idempotency 保護 — 已有 unitId 的 case 不會重複處理。`);
+            lines.push('');
+
+            const renderPlan = (p, idx) => {
+                const arr = [];
+                const reused = !UNIT_BLACKLIST.includes(p.normalizedName) && existingByName.has(p.normalizedName);
+                const tag = reused ? '♻️ 重用既有' : '🆕 建立新';
+                arr.push(`  ${idx}. ${tag} unit: ${p.normalizedName}  [${p.type}]`);
+                arr.push(`     case 數：${p.cases.length}`);
+                arr.push(`     case 列表：${p.cases.map(c => `${c.caseNo || '(無)'}${c.clientName ? '/' + c.clientName : ''}`).join('、')}`);
+                arr.push(`     unit 欄位：`);
+                for (const [k, v] of Object.entries(p.unitFields)) {
+                    if (k === 'company') continue;
+                    const display = Array.isArray(v) ? `[${v.length} items]` : (typeof v === 'string' && v.length > 50 ? v.slice(0, 50) + '...' : JSON.stringify(v));
+                    arr.push(`       - ${k}: ${display}`);
+                }
+                return arr.join('\n');
+            };
+
+            for (const typeKey of ['shared', 'isolated', 'single']) {
+                const list = plans.filter(p => p.type === typeKey);
+                if (list.length === 0) continue;
+                const title = { shared: 'shared（多 case 共用 unit）', isolated: 'isolated（黑名單）', single: 'single（1 case 1 unit）' }[typeKey];
+                lines.push(`━━━ ${title} — ${list.length} 筆 ━━━`);
+                list.forEach((p, i) => lines.push(renderPlan(p, i + 1)));
+                lines.push('');
+            }
+
+            if (orphans.length > 0) {
+                lines.push('━━━ 孤立 case（沒 company，無法建 unit） ━━━');
+                orphans.forEach(c => lines.push(`  - ${c.caseNo || '(無)'}  ${c.clientName || '(無名)'}  ${c.category || ''}  id=${c.id}`));
+                lines.push('');
+            }
+
+            lines.push('━━━ 注意 ━━━');
+            lines.push('1. 本預覽純讀取，沒有動到 Firestore。');
+            lines.push('2. 真執行會建立 unit doc + 對每筆 case update { unitId, unitMigratedAt }。');
+            lines.push('3. case 上的 unit-level 欄位（companyAddress 等）會「保留」一份備援，向後相容。');
+            lines.push('4. 已有 unitId 的 case 會被略過，可重跑無風險。');
+
+            const text = lines.join('\n');
+            const titleEl = document.getElementById('diag-case-title');
+            const bodyEl = document.getElementById('diag-case-body');
+            if (titleEl) titleEl.textContent = `Phase 1 migration 預覽 — 建 ${plans.length} unit / 更新 ${totalCaseUpdates} case`;
+            if (bodyEl) bodyEl.textContent = text;
+
+            // footer 加上「執行 migration」按鈕
+            const footer = document.querySelector('#diag-case-modal .p-3.border-t');
+            if (footer) {
+                footer.querySelectorAll('.cleanup-exec-btn, .migrate-exec-btn').forEach(b => b.remove());
+                const btn = document.createElement('button');
+                btn.className = 'migrate-exec-btn text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded shadow';
+                btn.innerHTML = `<i class="fa-solid fa-building mr-1"></i>確認執行 migration`;
+                btn.onclick = () => window.migrateToUnitsExecute();
+                const copyBtn = footer.querySelector('button[onclick*="diagCopyToClipboard"]');
+                if (copyBtn) footer.insertBefore(btn, copyBtn);
+                else footer.appendChild(btn);
+            }
+
+            document.getElementById('diag-case-modal')?.classList.remove('hidden');
+            console.log('%c=== migrateToUnitsDryRun() ===', 'font-weight:bold;color:#6366f1');
+            console.log(text);
+        };
+
+        // 真執行：建立 units + update cases.unitId
+        window.migrateToUnitsExecute = async function() {
+            if (!currentUser) { showToast('❌ 未登入'); return; }
+            const { plans, orphans } = _planUnitMigration();
+            const existingUnits = await _loadExistingUnits();
+            const existingByName = new Map(existingUnits.map(u => [u.normalizedName || _normalizeUnitName(u.company), u]));
+
+            const totalCaseUpdates = plans.reduce((s, p) => s + p.cases.length, 0);
+            const msg = `將執行以下動作：\n` +
+                `1. 建立 ${plans.length} 筆 unit document（含黑名單獨立）\n` +
+                `2. 更新 ${totalCaseUpdates} 筆 case 的 unitId 欄位\n\n` +
+                `case 上的舊欄位（companyAddress 等）會保留以維持向後相容。\n` +
+                `已備份 cases JSON 嗎？確定繼續？`;
+            if (!confirm(msg)) return;
+
+            const uid = currentUser.uid;
+            let batch = writeBatch(db);
+            let ops = 0;
+            const flush = async () => {
+                if (ops === 0) return;
+                await batch.commit();
+                batch = writeBatch(db);
+                ops = 0;
+            };
+
+            let unitCreated = 0, unitReused = 0;
+            let caseUpdated = 0, caseSkipped = 0;
+            const errors = [];
+
+            try {
+                for (const p of plans) {
+                    let unitId;
+                    let unitDoc = null;
+
+                    // shared / single 走重用邏輯；isolated 永遠建新
+                    const reuseExisting = (p.type !== 'isolated') && existingByName.has(p.normalizedName);
+
+                    if (reuseExisting) {
+                        unitDoc = existingByName.get(p.normalizedName);
+                        unitId = unitDoc.id;
+                        unitReused++;
+                        // 補上 existing unit 缺的欄位（merge）
+                        const patch = {};
+                        for (const [k, v] of Object.entries(p.unitFields)) {
+                            if (k === 'company') continue;
+                            const isEmptyExisting = unitDoc[k] === undefined || unitDoc[k] === null
+                                || (Array.isArray(unitDoc[k]) ? unitDoc[k].length === 0 : String(unitDoc[k]).trim() === '');
+                            if (isEmptyExisting && v !== undefined && v !== null && v !== '') {
+                                patch[k] = v;
+                            }
+                        }
+                        if (Object.keys(patch).length > 0) {
+                            patch.updatedAt = serverTimestamp();
+                            batch.update(doc(db, 'users', uid, 'units', unitId), patch);
+                            ops++;
+                        }
+                    } else {
+                        // 建新 unit
+                        const ref = doc(collection(db, 'users', uid, 'units'));
+                        unitId = ref.id;
+                        const payload = {
+                            ...p.unitFields,
+                            normalizedName: p.normalizedName,
+                            type: p.type,
+                            createdFrom: 'phase1-migration',
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                        };
+                        batch.set(ref, payload);
+                        ops++;
+                        unitCreated++;
+                    }
+
+                    if (ops >= 400) await flush();
+
+                    // 更新 case.unitId（已有 unitId 的 case 略過）
+                    for (const c of p.cases) {
+                        if (c.unitId) { caseSkipped++; continue; }
+                        batch.update(doc(db, 'users', uid, 'cases', c.id), {
+                            unitId,
+                            unitMigratedAt: new Date().toISOString(),
+                            updatedAt: serverTimestamp(),
+                        });
+                        ops++;
+                        caseUpdated++;
+                        if (ops >= 400) await flush();
+                    }
+                }
+                await flush();
+            } catch (err) {
+                errors.push(`執行失敗：${err.message || err}`);
+                console.error('Phase 1 migration 失敗：', err);
+            }
+
+            const summary = `✅ Migration 完成：建立 ${unitCreated} unit、重用 ${unitReused} unit、更新 ${caseUpdated} case${caseSkipped ? `、略過已 migrate 的 ${caseSkipped}` : ''}${orphans.length ? `、孤立 ${orphans.length} 筆未處理` : ''}`;
+            console.log(summary);
+            if (errors.length > 0) {
+                alert(summary + '\n\n錯誤：\n' + errors.join('\n'));
+            } else {
+                alert(summary);
+            }
+            document.getElementById('diag-case-modal')?.classList.add('hidden');
         };
 
         // 🆕 console 診斷工具：在瀏覽器 F12 console 直接呼叫 diagPrimary() 看主責判斷狀況
