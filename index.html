@@ -15747,18 +15747,20 @@ ${rawDraft}
                 setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>比對與寫入中 (0/${normalized.length})...`);
 
                 let created = 0, merged = 0, skipped = 0;
+                let unitsCreated = 0, unitsMerged = 0, unitOnlyRows = 0;
                 // 🆕 詳細記錄供匯入後 modal 顯示
-                const importLog = [];   // [{ kind: 'create'|'merge'|'skip', caseNo, name, fields: [labels...] }]
+                const importLog = [];   // [{ kind: 'create'|'merge'|'skip'|'unit-create'|'unit-merge', caseNo, name, fields: [labels...] }]
                 const _fieldLabel = (key) => {
                     const f = (FULL_CASE_FIELDS || []).find(x => x.key === key);
                     return f ? f.label : key;
                 };
                 const now = new Date().toISOString();
+                const forceOverwrite = document.getElementById('case-import-force')?.checked;
 
                 // (R2) Firestore writeBatch：每 400 筆 commit 一次，避開 500 上限，5–10× 匯入速度
                 const BATCH_LIMIT = 400;
                 let batch = writeBatch(db);
-                let batchOps = [];   // [{kind: 'create'|'merge'}]  用來在 commit 成功後批次加計數
+                let batchOps = [];   // [{kind}] 用來在 commit 成功後批次加計數
 
                 const commitBatch = async () => {
                     if (batchOps.length === 0) return;
@@ -15766,7 +15768,12 @@ ${rawDraft}
                     batchOps = [];
                     try {
                         await batch.commit();
-                        for (const op of ops) { if (op.kind === 'create') created++; else merged++; }
+                        for (const op of ops) {
+                            if (op.kind === 'create') created++;
+                            else if (op.kind === 'merge') merged++;
+                            else if (op.kind === 'unit-create') unitsCreated++;
+                            else if (op.kind === 'unit-merge') unitsMerged++;
+                        }
                     } catch (err) {
                         console.warn('[案件匯入] batch commit 失敗', err);
                         skipped += ops.length;
@@ -15774,27 +15781,149 @@ ${rawDraft}
                     batch = writeBatch(db);
                 };
 
+                // ============================================================
+                // 🆕 Phase 2：第一趟掃 row，建/更新 units，建立 normalizedName → unitId map
+                // ============================================================
+                setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>建立單位資料中...`);
+                let existingUnits = [];
+                try {
+                    const unitSnap = await getDocs(collection(db, 'users', currentUser.uid, 'units'));
+                    existingUnits = unitSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                } catch (err) {
+                    console.warn('讀取既有 units 失敗（可能 collection 尚不存在）', err);
+                }
+                const existingUnitsByName = new Map(existingUnits.map(u => [u.normalizedName || _normalizeUnitName(u.company), u]));
+
+                // 把 normalized row 按 normalizedName 分組
+                const unitGroups = new Map();   // normalizedName → { rawCompany, rows: [] }
+                for (const row of normalized) {
+                    const norm = _normalizeUnitName(row.company);
+                    if (!norm) continue;
+                    if (!unitGroups.has(norm)) unitGroups.set(norm, { rawCompany: row.company, rows: [] });
+                    unitGroups.get(norm).rows.push(row);
+                }
+
+                // 對每個 group，建/更新 unit doc；blacklist 名稱（自營作業者）每 row 獨立 unit
+                // row._phase2_unitId 暫存到該 row 上，供第二趟 case loop 用
+                for (const [norm, g] of unitGroups) {
+                    const blacklisted = UNIT_BLACKLIST.includes(norm);
+
+                    if (blacklisted) {
+                        // 每 row 獨立 unit
+                        for (const row of g.rows) {
+                            // 若該 row 對應到已存在 case，沿用該 case 的 unitId（避免重複建）
+                            let unitId = null;
+                            if (row.caseNo) {
+                                const eCase = casesData.find(c => (c.caseNo || '').trim() === row.caseNo);
+                                if (eCase?.unitId) unitId = eCase.unitId;
+                            }
+                            const rowFields = _pickUnitFields([row]);
+
+                            if (unitId) {
+                                // 更新既有 unit
+                                const existingUnit = existingUnits.find(u => u.id === unitId);
+                                if (existingUnit) {
+                                    const patch = {};
+                                    for (const [k, v] of Object.entries(rowFields)) {
+                                        if (k === 'company') continue;
+                                        const cur = existingUnit[k];
+                                        const isEmpty = cur === undefined || cur === null
+                                            || (Array.isArray(cur) ? cur.length === 0 : String(cur).trim() === '');
+                                        if (forceOverwrite || isEmpty) {
+                                            if (v !== undefined && v !== null && v !== '') patch[k] = v;
+                                        }
+                                    }
+                                    if (Object.keys(patch).length > 0) {
+                                        patch.updatedAt = serverTimestamp();
+                                        batch.update(doc(db, 'users', currentUser.uid, 'units', unitId), patch);
+                                        batchOps.push({ kind: 'unit-merge' });
+                                    }
+                                }
+                            } else {
+                                // 建新 unit（isolated）
+                                const ref = doc(collection(db, 'users', currentUser.uid, 'units'));
+                                batch.set(ref, {
+                                    ...rowFields,
+                                    normalizedName: norm,
+                                    type: 'isolated',
+                                    createdFrom: 'excel-import',
+                                    createdAt: serverTimestamp(),
+                                    updatedAt: serverTimestamp(),
+                                });
+                                batchOps.push({ kind: 'unit-create' });
+                                unitId = ref.id;
+                            }
+                            row._phase2_unitId = unitId;
+                            if (batchOps.length >= BATCH_LIMIT) await commitBatch();
+                        }
+                    } else {
+                        // 同 company 共用一個 unit（shared 或 single）
+                        const unitFields = _pickUnitFields(g.rows);
+                        const existingUnit = existingUnitsByName.get(norm);
+                        let unitId;
+
+                        if (existingUnit) {
+                            unitId = existingUnit.id;
+                            const patch = {};
+                            for (const [k, v] of Object.entries(unitFields)) {
+                                if (k === 'company') continue;
+                                const cur = existingUnit[k];
+                                const isEmpty = cur === undefined || cur === null
+                                    || (Array.isArray(cur) ? cur.length === 0 : String(cur).trim() === '');
+                                if (forceOverwrite || isEmpty) {
+                                    if (v !== undefined && v !== null && v !== '') patch[k] = v;
+                                }
+                            }
+                            if (Object.keys(patch).length > 0) {
+                                patch.updatedAt = serverTimestamp();
+                                batch.update(doc(db, 'users', currentUser.uid, 'units', unitId), patch);
+                                batchOps.push({ kind: 'unit-merge' });
+                            }
+                        } else {
+                            const ref = doc(collection(db, 'users', currentUser.uid, 'units'));
+                            unitId = ref.id;
+                            batch.set(ref, {
+                                ...unitFields,
+                                normalizedName: norm,
+                                type: g.rows.length > 1 ? 'shared' : 'single',
+                                createdFrom: 'excel-import',
+                                createdAt: serverTimestamp(),
+                                updatedAt: serverTimestamp(),
+                            });
+                            batchOps.push({ kind: 'unit-create' });
+                        }
+                        for (const row of g.rows) row._phase2_unitId = unitId;
+                        if (batchOps.length >= BATCH_LIMIT) await commitBatch();
+                    }
+                }
+                await commitBatch();   // unit 階段先 flush 一次，確保 caseStage 用得到
+
+                // ============================================================
+                // 第二趟：寫 case（每筆帶上 unitId）
+                // ============================================================
+                setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>比對與寫入 case 中 (0/${normalized.length})...`);
                 for (let i = 0; i < normalized.length; i++) {
                     const row = normalized[i];
-                    setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>處理中 ${i+1}/${normalized.length}...`);
+                    setStatus(`<i class="fa-solid fa-spinner fa-spin mr-1"></i>處理 case ${i+1}/${normalized.length}...`);
 
-                    // 找對應案件
+                    // 🆕 Phase 2：純單位 row（沒 clientName 也沒 caseNo）→ 不建 case（unit 已在第一趟處理）
+                    if (!row.clientName && !row.caseNo) {
+                        unitOnlyRows++;
+                        continue;
+                    }
+
+                    // 找對應案件（取消舊的 company-only 比對分支：那種 row 已被上面 unit-only 略過）
                     let existing = null;
                     if (row.caseNo) existing = casesData.find(c => (c.caseNo || '').trim() === row.caseNo);
                     if (!existing && row.company && row.clientName) {
                         existing = casesData.find(c => (c.company || '').trim() === row.company && (c.clientName || '').trim() === row.clientName);
                     }
-                    if (!existing && row.company && !row.clientName) {
-                        // 中高齡工作站或僅有單位者
-                        existing = casesData.find(c => (c.company || '').trim() === row.company && !c.clientName);
-                    }
+
+                    const unitIdForRow = row._phase2_unitId || null;
 
                     if (existing) {
-                        // 🆕 「強制覆蓋」勾選 → Excel 為準（所有 row 欄位都覆蓋既有，含「(工作站案件)」這種佔位）
+                        // 🆕 「強制覆蓋」勾選 → Excel 為準（所有 row 欄位都覆蓋既有）
                         // 預設「補空不覆蓋」 → 既有有值就保留（陣列空[]視為空、可被覆蓋）
-                        const forceOverwrite = document.getElementById('case-import-force')?.checked;
-                        // 🆕 保留欄位白名單：永遠不被 Excel 覆蓋（即使強制覆蓋也不動）
-                        // 理由：這些是使用者手動填/系統累積的資料，Excel 沒有
                         const PROTECTED_KEYS = new Set([
                             // 工作區 / 紀錄類
                             'workstations', 'companyPersonnel', 'workstationItems',
@@ -15807,10 +15936,13 @@ ${rawDraft}
                             'applicationFileUrl', 'applicationFile',
                             // 階段
                             'stage',
+                            // 🆕 Phase 2：unitId / unitMigratedAt 不被 Excel 覆蓋
+                            'unitId', 'unitMigratedAt',
                         ]);
                         const patch = {};
                         Object.keys(row).forEach(k => {
-                            if (PROTECTED_KEYS.has(k)) return;   // 🆕 保留欄位完全不動
+                            if (k.startsWith('_phase2_')) return;   // 跳過內部標記
+                            if (PROTECTED_KEYS.has(k)) return;
                             const cur = existing[k];
                             const isEmpty = cur === undefined || cur === null
                                 || (Array.isArray(cur) ? cur.length === 0 : String(cur).trim() === '');
@@ -15821,6 +15953,10 @@ ${rawDraft}
                                 if (row[k] !== undefined && row[k] !== '' && row[k] !== null) patch[k] = row[k];
                             }
                         });
+                        // 🆕 Phase 2：若既有 case 還沒 unitId，補上
+                        if (!existing.unitId && unitIdForRow) {
+                            patch.unitId = unitIdForRow;
+                        }
                         // 若舊案為 meeting-import 佔位、且此次帶入了訪視日期 → 升級階段
                         if (row.visitDate && (!existing.stage || existing.stage === '待訪視') && (!existing.visitDate)) {
                             patch.stage = '訪視中';
@@ -15851,8 +15987,11 @@ ${rawDraft}
                         }
                     } else {
                         // 建立新案件
+                        const cleanRow = { ...row };
+                        delete cleanRow._phase2_unitId;   // 不寫內部標記
                         const newCase = {
-                            ...row,
+                            ...cleanRow,
+                            unitId: unitIdForRow,   // 🆕 Phase 2：新案直接帶 unitId
                             stage: row.visitDate ? '訪視中' : '待訪視',
                             createdFrom: 'excel-import',
                             createdAt: serverTimestamp(),
@@ -15866,7 +16005,7 @@ ${rawDraft}
                         };
                         if (!newCase.category) newCase.category = '身心障礙者'; // 預設
                         // ⚠️ 不自動填 owner：以案件總表匯入的資料為正確，未提供就留空，之後在案件編輯中補
-                        if (newCase.category === '中高齡（工作站）' && !newCase.clientName) newCase.clientName = '（工作站案件）';
+                        // 🆕 Phase 2：移除「（工作站案件）」佔位產生 — unit-only row 在上面已 skip
                         // 產生新文件 ref（client-side ID）以便放進 batch
                         const newRef = doc(collection(db, 'users', currentUser.uid, 'cases'));
                         batch.set(newRef, newCase);
@@ -15885,7 +16024,9 @@ ${rawDraft}
                 }
                 await commitBatch();  // 剩餘
 
-                setStatus(`✅ 匯入完成：新建 <b>${created}</b> 件，合併補空 <b>${merged}</b> 件${skipped ? `，略過 ${skipped} 件` : ''}。<button onclick="window.showImportDetailModal()" class="ml-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded font-bold"><i class="fa-solid fa-list-check mr-1"></i>查看明細</button>`, 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+                const unitSummary = (unitsCreated || unitsMerged) ? `、新建 unit <b>${unitsCreated}</b>／合併 unit <b>${unitsMerged}</b>` : '';
+                const unitOnlySummary = unitOnlyRows ? `、純單位列 <b>${unitOnlyRows}</b>` : '';
+                setStatus(`✅ 匯入完成：新建 case <b>${created}</b>、合併補空 <b>${merged}</b>${skipped ? `、略過 ${skipped}` : ''}${unitSummary}${unitOnlySummary}。<button onclick="window.showImportDetailModal()" class="ml-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded font-bold"><i class="fa-solid fa-list-check mr-1"></i>查看明細</button>`, 'bg-emerald-50 border border-emerald-200 text-emerald-800');
                 // 🆕 把 log 暫存到 window，供 modal 讀
                 window._lastImportLog = importLog;
                 window._lastImportSummary = { created, merged, skipped };
